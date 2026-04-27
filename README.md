@@ -46,13 +46,10 @@ Three rules run the whole project:
 
 ## Preview
 
-<table>
-<tr>
-<td valign="top"><strong>English</strong></td>
-<td valign="top"><strong>中文</strong></td>
-</tr>
-<tr>
-<td valign="top"><pre>                    ▐▛███▜▌
+**English**
+
+```text
+                    ▐▛███▜▌
                     ▜█████▛
                      ▘▘ ▝▝
                   CLAUDE CODE
@@ -82,8 +79,13 @@ PRICE DATE                            2026-04-25
     THE LOGO LOOKS CALM. THE BILL DOES NOT.
 
         ||| ||||| || ||| | | || |||  | |
-           CC_20260427_151928_7CE382</pre></td>
-<td valign="top"><pre>                    ▐▛███▜▌
+           CC_20260427_151928_7CE382
+```
+
+**中文**
+
+```text
+                    ▐▛███▜▌
                     ▜█████▛
                      ▘▘ ▝▝
                   CLAUDE CODE
@@ -113,9 +115,8 @@ USD 预估                               $0.062851
              画面稳了，预算死了。
 
          ||| |||||  ||||||| |||||||||  |
-           CC_20260427_155533_9A83E3</pre></td>
-</tr>
-</table>
+           CC_20260427_155533_9A83E3
+```
 
 Same receipt.
 Different language.

@@ -46,44 +46,10 @@
 
 ## 预览
 
-<table>
-<tr>
-<td valign="top"><strong>English</strong></td>
-<td valign="top"><strong>中文</strong></td>
-</tr>
-<tr>
-<td valign="top"><pre>                    ▐▛███▜▌
-                    ▜█████▛
-                     ▘▘ ▝▝
-                  CLAUDE CODE
+**中文**
 
-        THANK YOU FOR CODING WITH Claude
-      RECEIPT #: CC_20260427_151928_7CE382
-           DATE: 2026-04-27 15:19:28
-------------------------------------------------
-PROVIDER                               ANTHROPIC
-MODEL                          claude-sonnet-4.5
-CONTEXT USED                              12,487
-------------------------------------------------
-ITEM                                      TOKENS
-------------------------------------------------
-Input Tokens                              12,487
-Output Tokens                              3,215
-Cache Read Tokens                          8,742
-Reasoning Tokens                             128
-Cache Write Tokens                         1,024
-------------------------------------------------
-TOTAL                              15,702 TOKENS
-------------------------------------------------
-USD ESTIMATE                           $0.062851
-PRICE                          claude-sonnet-4.5
-PRICE DATE                            2026-04-25
-------------------------------------------------
-    THE LOGO LOOKS CALM. THE BILL DOES NOT.
-
-        ||| ||||| || ||| | | || |||  | |
-           CC_20260427_151928_7CE382</pre></td>
-<td valign="top"><pre>                    ▐▛███▜▌
+```text
+                    ▐▛███▜▌
                     ▜█████▛
                      ▘▘ ▝▝
                   CLAUDE CODE
@@ -113,9 +79,44 @@ USD 预估                               $0.062851
              画面稳了，预算死了。
 
          ||| |||||  ||||||| |||||||||  |
-           CC_20260427_155533_9A83E3</pre></td>
-</tr>
-</table>
+           CC_20260427_155533_9A83E3
+```
+
+**English**
+
+```text
+                    ▐▛███▜▌
+                    ▜█████▛
+                     ▘▘ ▝▝
+                  CLAUDE CODE
+
+        THANK YOU FOR CODING WITH Claude
+      RECEIPT #: CC_20260427_151928_7CE382
+           DATE: 2026-04-27 15:19:28
+------------------------------------------------
+PROVIDER                               ANTHROPIC
+MODEL                          claude-sonnet-4.5
+CONTEXT USED                              12,487
+------------------------------------------------
+ITEM                                      TOKENS
+------------------------------------------------
+Input Tokens                              12,487
+Output Tokens                              3,215
+Cache Read Tokens                          8,742
+Reasoning Tokens                             128
+Cache Write Tokens                         1,024
+------------------------------------------------
+TOTAL                              15,702 TOKENS
+------------------------------------------------
+USD ESTIMATE                           $0.062851
+PRICE                          claude-sonnet-4.5
+PRICE DATE                            2026-04-25
+------------------------------------------------
+    THE LOGO LOOKS CALM. THE BILL DOES NOT.
+
+        ||| ||||| || ||| | | || |||  | |
+           CC_20260427_151928_7CE382
+```
 
 同一张票。
 换一门语言。
