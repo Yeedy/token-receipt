@@ -124,6 +124,21 @@ PRICE DATE                            2026-04-25
 
 ---
 
+## 怎么触发
+
+如果你想在聊天里直接把这轮用量打成小票，直接这样说：
+
+- `token 小票`
+- `对话发票`
+- `AI 用量账单`
+- `把这次对话打成小票`
+- `看看这轮 token 消耗`
+- `查看本次对话 Token 消耗`
+
+如果装了 Claude Code 的自动触发，`SessionEnd` 结束时也会自动出票。
+
+---
+
 ## footer 才是亮点
 
 footer 不是装饰。
@@ -145,14 +160,14 @@ footer 是最后那一刀。
 
 ## 支持哪些软件
 
-`token-receipt` 的原则是：你在哪个软件里用它，它就该去读那个软件自己的会话数据。
-它不该因为别的软件日志更新得更晚，就偷偷换源。
+它会优先给你当前正在用的软件结账。
+不会因为别的软件日志更新得更晚，就偷偷换源。
 
-| 软件 | 当前状态 | macOS | Windows | 说明 |
-| --- | --- | --- | --- | --- |
-| Codex | `现在就支持` | `~/.codex/sessions` 和 `~/.codex/archived_sessions` | `%USERPROFILE%\.codex\sessions` 和 `%USERPROFILE%\.codex\archived_sessions` | 直接读取 JSONL 会话日志 |
-| Claude Code | `现在就支持` | `~/.claude/usage-data/session-meta` 和 `~/.claude/projects` | `%USERPROFILE%\.claude\usage-data\session-meta` 和 `%USERPROFILE%\.claude\projects` | 用 usage log 取 token，用 project transcript 辅助识别模型 |
-| Trae | `当前先支持手动出票` | `~/Library/Application Support/Trae/User/workspaceStorage` 和 `.../globalStorage` | `%APPDATA%\Trae\User\workspaceStorage` 和 `... \globalStorage` | Trae 的聊天状态在 VS Code 风格的应用存储 / SQLite 里，不是干净的 JSONL，所以自动导入暂未发版 |
+| 软件 | 当前状态 | 数据来源 | 说明 |
+| --- | --- | --- | --- |
+| Codex | `现在就支持` | Codex JSONL 会话 | 直接读本地会话日志 |
+| Claude Code | `现在就支持` | Claude usage-data + projects | 用 usage log 取 token，用 transcript 辅助识别模型 |
+| Trae | `当前先支持手动出票` | Trae 应用存储 | 自动导入暂未发版 |
 
 补充说明：
 

@@ -17,7 +17,10 @@ DEFAULT_FOOTER = "auto"
 DEFAULT_LANGUAGE = "en"
 SUPPORTED_LANGUAGES = ("en", "zh-CN")
 PIXEL_CHARS = {"█", "░", "▒", "▓", "▐", "▛", "▜", "▌", "▘", "▝", "¥"}
-CODE_BLOCK_WIDE_CHAR_WIDTH = 1.62
+# In terminal / code-block rendering, Chinese full-width characters behave
+# much closer to a real 2-column cell than to the narrower chat-bubble estimate.
+# Using the full width keeps zh-CN receipts aligned in Claude Code and PTY output.
+CODE_BLOCK_WIDE_CHAR_WIDTH = 2.0
 COMMON_TOKEN_FIELDS = (
     "input_tokens",
     "output_tokens",

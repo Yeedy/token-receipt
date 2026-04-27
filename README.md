@@ -124,6 +124,25 @@ Same emotional outcome.
 
 ---
 
+## How to trigger it
+
+If you want the skill to fire inside chat, ask for the receipt directly.
+
+Strong trigger phrases:
+
+- `token receipt`
+- `token bill`
+- `usage receipt`
+- `token 小票`
+- `对话发票`
+- `AI 用量账单`
+- `把这次对话打成小票`
+- `查看本次对话 Token 消耗`
+
+Claude Code can also auto-print on `SessionEnd` after installation.
+
+---
+
 ## The footer is the feature
 
 The footer is not decoration.
@@ -145,14 +164,14 @@ If the receipt looks good but the footer has no sting, the job is not done.
 
 ## Software support
 
-`token-receipt` is supposed to bill the software you are actually using.
-It should not quietly read another app's logs just because they were newer.
+It bills the software you are actually using.
+It does not quietly switch to another app's newer logs.
 
-| Software | Status | macOS | Windows | Notes |
-| --- | --- | --- | --- | --- |
-| Codex | `supported now` | `~/.codex/sessions` and `~/.codex/archived_sessions` | `%USERPROFILE%\.codex\sessions` and `%USERPROFILE%\.codex\archived_sessions` | Reads JSONL session logs directly |
-| Claude Code | `supported now` | `~/.claude/usage-data/session-meta` and `~/.claude/projects` | `%USERPROFILE%\.claude\usage-data\session-meta` and `%USERPROFILE%\.claude\projects` | Uses usage logs for token counts and project transcripts for model lookup |
-| Trae | `manual receipt mode now` | `~/Library/Application Support/Trae/User/workspaceStorage` and `.../globalStorage` | `%APPDATA%\Trae\User\workspaceStorage` and `... \globalStorage` | Trae stores chat state in VS Code-style app storage / SQLite, so automatic transcript import is not shipped yet |
+| Software | Status | Data source | Notes |
+| --- | --- | --- | --- |
+| Codex | `supported now` | Codex JSONL sessions | Reads local session logs directly |
+| Claude Code | `supported now` | Claude usage-data + projects | Uses usage logs for tokens and transcripts for model lookup |
+| Trae | `manual mode now` | Trae app storage | Auto transcript import is not shipped yet |
 
 Notes:
 

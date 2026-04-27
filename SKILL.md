@@ -7,6 +7,20 @@ description: Use when the user wants to view AI conversation token usage as a re
 
 把本次 AI 对话的 Token 消耗做成一张可截图传播的 monospace 热敏纸小票。视觉优先级高于报表完整性，但数据口径必须诚实：真实日志优先，官方价格估算其次，缺失信息要明确标注。
 
+## 用户怎么触发
+
+下面这些说法默认应该直接触发：
+
+- `token receipt`
+- `token 小票`
+- `对话发票`
+- `AI 用量账单`
+- `把这次对话打成小票`
+- `看看这轮 token 消耗`
+- `查看本次对话 Token 消耗`
+
+Claude Code 如果装了自动触发，`SessionEnd` 结束时也会自动出票。
+
 ## 当前产品方向
 
 - 主输出面是聊天对话框里的 `receipt-only` 小票，不把 HTML 当第一优先级。
@@ -103,10 +117,8 @@ python3 scripts/uninstall_claude_auto_trigger.py
    - 会话结束自动出 receipt；用户在会话中主动说“token receipt / token 小票 / 对话发票 / AI 用量账单”时也能触发。
 2. `Codex`
    - 当前按触发词调用，不假设存在 `SessionEnd` hook。
-   - 描述要写得足够 pushy，避免 under-trigger。
 3. `Trae`
    - 当前按触发词调用，不假设存在生命周期 hook。
-   - 和 Codex 一样，先把触发词路径做好。
 
 更细的触发词设计见 `references/trigger-phrases.md`。
 

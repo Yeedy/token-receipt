@@ -306,7 +306,8 @@ def footer_theme(snapshot: UsageSnapshot, hint: str) -> str:
     return "generic"
 
 
-def footer_style(snapshot: UsageSnapshot, tone: str, hint: str, digest: int) -> str:
+def footer_style(snapshot: UsageSnapshot, tone: str, hint: str, digest: int, language: str = DEFAULT_LANGUAGE) -> str:
+    language = canonical_language(language)
     if tone in ("snarky", "encouraging", "dry"):
         return tone
     text = f"{hint} {snapshot.model} {snapshot.provider}".lower()
@@ -317,6 +318,10 @@ def footer_style(snapshot: UsageSnapshot, tone: str, hint: str, digest: int) -> 
     )
     if contains_any(text, warm):
         return "encouraging"
+    if language == "zh-CN":
+        if contains_any(text, sharp):
+            return "snarky"
+        return "dry" if digest % 4 == 0 else "snarky"
     if contains_any(text, sharp):
         return "snarky"
     return "encouraging" if digest % 2 == 0 else "snarky"
@@ -570,46 +575,46 @@ def zh_footer_snark_candidates(theme: str) -> List[str]:
 def zh_footer_dry_candidates(theme: str) -> List[str]:
     if theme == "visual":
         return [
-            "Logo 变了，账单记录了。",
-            "对齐改了，费用也记了。",
-            "像素用了，票面承认了。",
+            "Logo 动了，账单留档。",
+            "对齐改了，费用也在。",
+            "像素没白用，钱也没白花。",
         ]
     if theme == "pricing":
         return [
-            "价格在这里，结果也在这里。",
-            "账单附着于真实 token。",
+            "价格在这里，幻想不在。",
+            "账单跟着 token 一起落地。",
             "这次花费，票面记得很清楚。",
         ]
     if theme == "debug":
         return [
-            "修复存在，票面确认。",
-            "补丁已落地，费用已跟进。",
+            "修复落地了，费用也落地了。",
+            "补丁合上了，账单跟上了。",
             "问题过去了，账单没有。",
         ]
     if theme == "shipping":
         return [
-            "交付发生了，账单保留了。",
-            "结果发出去了，票面留着。",
+            "交付完成了，票面还在。",
+            "结果发出去了，账单留着。",
         ]
     if theme == "iteration":
         return [
             "这一版存在，账单作证。",
-            "调整已完成，费用已附上。",
+            "调整完成，费用附上。",
         ]
     if theme == "reasoning":
         return [
-            "思考发生了，账单同意。",
+            "思考发生了，账单记下了。",
             "推理出现了，费用也出现了。",
         ]
     if theme == "context":
         return [
-            "上下文被使用了，票面确认。",
-            "缓存参与了，账单批准了。",
+            "上下文用掉了，票面确认。",
+            "缓存参与了，账单也参与了。",
         ]
     return [
-        "Token 被使用了，账单确认了。",
-        "这次输出有账单。",
-        "事情完成了，费用也完成了。",
+        "Token 用掉了，账单确认。",
+        "这次输出，有账单。",
+        "事情做完了，费用也做完了。",
     ]
 
 
@@ -617,37 +622,37 @@ def zh_footer_encouraging_candidates(theme: str) -> List[str]:
     if theme == "visual":
         return [
             "像素终于安静了，继续。",
-            "排版终于呼吸了，值得。",
-            "钱花了，但截图变好了。",
-            "Logo 稳住了，小票也稳住了。",
+            "排版顺了，图能发了。",
+            "钱花了，截图也能用了。",
+            "Logo 稳住了，小票也能见人了。",
         ]
     if theme == "pricing":
         return [
             "账单是诚实的，结果也是。",
-            "你花的是清楚的钱。",
-            "价格明了，工作也真实。",
-            "这笔费用，至少换来了推进。",
+            "你花的是明白钱。",
+            "价格清楚，活也清楚。",
+            "这笔费用，至少换来了结果。",
         ]
     if theme == "debug":
         return [
             "修复花了 token，但方向保住了。",
             "这次扣费，换来了清净。",
-            "补丁落地了，节奏还在。",
+            "补丁落地了，节奏没断。",
         ]
     if theme == "shipping":
         return [
             "结果落地了，继续推进。",
-            "钱花在了交付上，不算白花。",
+            "钱花在交付上，不算白花。",
         ]
     if theme == "iteration":
         return [
             "这次微调花了钱，但确实更好了。",
-            "这一版落地了，小票都轻了一点。",
+            "这一版落地了，至少不是白改。",
         ]
     if theme == "reasoning":
         return [
             "思考花了 token，答案值回来了。",
-            "推理费不低， clarity 还在。",
+            "推理费不低，结论还在。",
             "结论不是免费的，但它到了。",
         ]
     if theme == "context":
@@ -657,10 +662,10 @@ def zh_footer_encouraging_candidates(theme: str) -> List[str]:
             "窗口很紧，结果还是塞进去了。",
         ]
     return [
-        "Token 走了，推进留下了。",
-        "这次花费，至少换来了变化。",
-        "结果出来了，账单也讲得通。",
-        "钱没白烧，至少还在往前走。",
+        "这笔钱，至少换来了结果。",
+        "结果出来了，账单也认了。",
+        "钱烧掉了，事情推进了。",
+        "小票出来了，这轮不算白跑。",
     ]
 
 
@@ -705,7 +710,7 @@ def auto_footer(snapshot: UsageSnapshot, estimate: PriceEstimate, tone: str, wid
     key = f"{language}:{snapshot.provider}:{snapshot.model}:{snapshot.total_tokens}:{snapshot.cached_input_tokens}:{snapshot.reasoning_output_tokens}:{hint}:{tone}:{estimate.status}"
     digest = int(hashlib.sha1(key.encode("utf-8")).hexdigest()[:8], 16)
     theme = footer_theme(snapshot, hint)
-    style = footer_style(snapshot, tone, hint, digest)
+    style = footer_style(snapshot, tone, hint, digest, language)
     brand = product_name(snapshot).upper()
     if language == "zh-CN":
         if style == "snarky":
