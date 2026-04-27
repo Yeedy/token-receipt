@@ -38,9 +38,9 @@ Codex：
 Claude Code：
 
 ```text
-                    ▐▛███▜▌
-                    ▜█████▛
-                     ▘▘ ▝▝
+                     ▐▛███▜▌
+                    ▝▜█████▛▘
+                      ▘▘ ▝▝
                   CLAUDE CODE
 ```
 
@@ -66,6 +66,7 @@ Generic：
 ## 文案原则
 
 - 票面字段保留小票感但提高可读性。通用稳定字段固定为：`Input Tokens`、`Output Tokens`、`Cache Read Tokens`、`TOTAL`。
+- 分隔线要分强弱两级：粗主分隔线用于切主区域，细副分隔线用于承接表头和次区块，不要整张票只用一种横线。
 - 可选字段固定为：`Reasoning Tokens`、`Cache Write Tokens`。有真实字段就显示，没有就省略。
 - 不要打印来源不确定的字段。比如 `System Tokens`、`Tool Use Tokens` 不进入首版票面。
 - 多币种价格必须保留来源口径。人民币模型可以显示 `RATE NOTE`，例如 `CN MAINLAND` 或 `ALIYUN CN`；MiMo 这类通过 OpenRouter 补价的模型显示 `OPENROUTER`，避免把平台公开价伪装成厂商直连账单。

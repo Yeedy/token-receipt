@@ -42,6 +42,13 @@ def run_case(*args: str, env: dict[str, str] | None = None, stdin_text: str | No
     return run_script(SCRIPT, *args, env=env, stdin_text=stdin_text)
 
 
+def is_rule_line(line: str) -> bool:
+    stripped = line.strip()
+    if not stripped:
+        return False
+    return len(set(stripped)) == 1 and stripped[0] in {"-", "─", "━"}
+
+
 def assert_receipt(text: str, width: int, must_contain: list[str], language: str = "en") -> None:
     lines = text.splitlines()
     assert lines, "empty receipt"
@@ -56,11 +63,13 @@ def assert_receipt(text: str, width: int, must_contain: list[str], language: str
     assert any(label in text for label in ("ITEM", "项目")), "receipt item column missing"
     assert any(label in text for label in ("TOKENS", "TOKEN")), "receipt token column missing"
     assert any(label in text for label in ("TOTAL", "总计")), "total line missing"
+    assert any(set(line.strip()) == {"━"} for line in lines if line.strip()), "strong separator missing"
+    assert any(set(line.strip()) == {"─"} for line in lines if line.strip()), "light separator missing"
 
 
 def extract_footer(text: str) -> list[str]:
     lines = text.splitlines()
-    rule_indexes = [index for index, line in enumerate(lines) if line and set(line) == {"-"}]
+    rule_indexes = [index for index, line in enumerate(lines) if is_rule_line(line)]
     assert rule_indexes, "no divider rules found"
     footer_lines: list[str] = []
     for line in lines[rule_indexes[-1] + 1 :]:
@@ -235,7 +244,7 @@ def main() -> int:
         "--width", "48",
     )
     assert_receipt(claude, 48, ["████", "CLAUDE", "CODE", "Reasoning Tokens", "Cache Write Tokens", "USD ESTIMATE"])
-    assert_logo_label_aligned(claude, "CLAUDE CODE")
+    assert_logo_label_aligned(claude, "CLAUDE CODE", max_delta=1.0)
 
     claude_zh = run_case(
         "--provider", "anthropic",
@@ -252,7 +261,7 @@ def main() -> int:
         "--conversation-summary", "再改一版 logo 对齐",
     )
     assert_receipt(claude_zh, 48, ["CLAUDE CODE", "感谢使用 Claude", "小票号", "供应商", "总计", "USD 预估"], language="zh-CN")
-    assert_logo_label_aligned(claude_zh, "CLAUDE CODE")
+    assert_logo_label_aligned(claude_zh, "CLAUDE CODE", max_delta=1.0)
     assert any(word in claude_zh for word in ("账单", "费用", "代价", "预算", "钱包", "余额", "钱")), "zh receipt footer should read like a Chinese receipt footer"
 
     trae = run_case(

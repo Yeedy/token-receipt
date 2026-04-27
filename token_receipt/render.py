@@ -93,6 +93,12 @@ class Receipt:
     def rule(self, char: str = "-") -> None:
         self.add(char * self.width)
 
+    def strong_rule(self) -> None:
+        self.rule("━")
+
+    def light_rule(self) -> None:
+        self.rule("─")
+
     def kv(self, left: str, right: str) -> None:
         right = str(right)
         right_width = visual_display_width(right, self.language)
@@ -201,9 +207,9 @@ def add_logo(receipt: Receipt, agent_tool: str, language: str) -> None:
         add_centered_block(
             receipt,
             [
-                "▐▛███▜▌",
-                "▜█████▛",
-                " ▘▘ ▝▝",
+                " ▐▛███▜▌",
+                "▝▜█████▛▘",
+                "  ▘▘ ▝▝",
             ],
         )
         receipt.center("CLAUDE CODE")
@@ -788,13 +794,13 @@ def render_receipt(
     receipt.center(labels["thanks"].format(product=product_name(snapshot)))
     receipt.center(labels["receipt_id"].format(rid=rid))
     receipt.center(labels["date"].format(date=display_time(snapshot.timestamp)))
-    receipt.rule()
+    receipt.strong_rule()
     receipt.kv(labels["provider"], provider)
     receipt.kv(labels["model"], snapshot.model)
     receipt.kv(labels["context"], context_used(snapshot))
-    receipt.rule()
+    receipt.light_rule()
     receipt.kv(labels["item"], labels["tokens"])
-    receipt.rule()
+    receipt.light_rule()
     if source_has(snapshot, "input_tokens"):
         receipt.kv(labels["input"], fmt_int(snapshot.input_tokens))
     if source_has(snapshot, "output_tokens"):
@@ -805,9 +811,9 @@ def render_receipt(
         receipt.kv(labels["reasoning"], fmt_int(snapshot.reasoning_output_tokens))
     if source_has(snapshot, "cache_write_tokens"):
         receipt.kv(labels["cache_write"], fmt_int(snapshot.cache_write_tokens))
-    receipt.rule()
+    receipt.strong_rule()
     receipt.kv(labels["total"], f"{fmt_int(snapshot.total_tokens)} {labels['token_unit']}")
-    receipt.rule()
+    receipt.light_rule()
     receipt.kv(labels["estimate"].format(currency=estimate.currency), money(estimate.amount, estimate.currency))
     if estimate.status == "UNMAPPED":
         receipt.kv(labels["price"], labels["unmapped"])
@@ -817,7 +823,7 @@ def render_receipt(
             receipt.kv(labels["price_date"], estimate.source_checked_at)
         if estimate.rate_note:
             receipt.kv(labels["rate_note"], estimate.rate_note)
-    receipt.rule()
+    receipt.strong_rule()
     for line in footer_lines(footer_text, width, language):
         receipt.center(line)
     receipt.blank()
