@@ -16,7 +16,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from token_receipt.data import requested_agent_tool, runtime_agent_tool  # noqa: E402
-from token_receipt.models import display_width, printable_receipt_char  # noqa: E402
+from token_receipt.models import printable_receipt_char, visual_display_width  # noqa: E402
 
 SCRIPT = ROOT / "scripts" / "token_receipt.py"
 HOOK_SCRIPT = ROOT / "scripts" / "claude_session_end_hook.py"
@@ -42,11 +42,12 @@ def run_case(*args: str, env: dict[str, str] | None = None, stdin_text: str | No
     return run_script(SCRIPT, *args, env=env, stdin_text=stdin_text)
 
 
-def assert_receipt(text: str, width: int, must_contain: list[str]) -> None:
+def assert_receipt(text: str, width: int, must_contain: list[str], language: str = "en") -> None:
     lines = text.splitlines()
     assert lines, "empty receipt"
     for line in lines:
-        assert display_width(line) <= width, f"line too wide ({display_width(line)}>{width}): {line!r}"
+        measured = visual_display_width(line, language)
+        assert measured <= width + 0.51, f"line too wide ({measured}>{width}): {line!r}"
         for char in line:
             assert printable_receipt_char(char), f"unsupported control char in {line!r}"
     for needle in must_contain:
@@ -222,7 +223,7 @@ def main() -> int:
         "--footer-tone", "snarky",
         "--conversation-summary", "再改一版 logo 对齐",
     )
-    assert_receipt(claude_zh, 48, ["CLAUDE CODE", "感谢使用 Claude", "小票号", "供应商", "总计", "USD 预估"])
+    assert_receipt(claude_zh, 48, ["CLAUDE CODE", "感谢使用 Claude", "小票号", "供应商", "总计", "USD 预估"], language="zh-CN")
     assert_logo_label_aligned(claude_zh, "CLAUDE CODE")
     assert any(word in claude_zh for word in ("账单", "费用", "代价", "预算", "钱包", "余额", "钱")), "zh receipt footer should read like a Chinese receipt footer"
 

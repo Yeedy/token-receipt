@@ -17,6 +17,7 @@ DEFAULT_FOOTER = "auto"
 DEFAULT_LANGUAGE = "en"
 SUPPORTED_LANGUAGES = ("en", "zh-CN")
 PIXEL_CHARS = {"█", "░", "▒", "▓", "▐", "▛", "▜", "▌", "▘", "▝", "¥"}
+CODE_BLOCK_WIDE_CHAR_WIDTH = 1.62
 COMMON_TOKEN_FIELDS = (
     "input_tokens",
     "output_tokens",
@@ -88,6 +89,20 @@ def display_width(value: str) -> int:
     return sum(char_display_width(char) for char in value)
 
 
+def visual_char_width(char: str, language: Optional[str] = None) -> float:
+    if not char:
+        return 0.0
+    if unicodedata.combining(char):
+        return 0.0
+    if canonical_language(language) == "zh-CN" and unicodedata.east_asian_width(char) in {"W", "F"}:
+        return CODE_BLOCK_WIDE_CHAR_WIDTH
+    return float(char_display_width(char))
+
+
+def visual_display_width(value: str, language: Optional[str] = None) -> float:
+    return sum(visual_char_width(char, language) for char in value)
+
+
 def truncate(value: str, max_len: int, suffix: str = "...") -> str:
     if display_width(value) <= max_len:
         return value
@@ -119,6 +134,40 @@ def center_text(value: str, width: int) -> str:
     remaining = max(width - display_width(text), 0)
     left = remaining // 2
     right = remaining - left
+    return (" " * left + text + " " * right).rstrip()
+
+
+def truncate_visual(value: str, max_len: int, language: Optional[str] = None, suffix: str = "...") -> str:
+    if visual_display_width(value, language) <= max_len:
+        return value
+    suffix_width = visual_display_width(suffix, language)
+    if max_len <= suffix_width:
+        pieces: list[str] = []
+        width = 0.0
+        for char in value:
+            char_width = visual_char_width(char, language)
+            if width + char_width > max_len:
+                break
+            pieces.append(char)
+            width += char_width
+        return "".join(pieces)
+    pieces = []
+    width = 0.0
+    target = max_len - suffix_width
+    for char in value:
+        char_width = visual_char_width(char, language)
+        if width + char_width > target:
+            break
+        pieces.append(char)
+        width += char_width
+    return "".join(pieces) + suffix
+
+
+def center_text_visual(value: str, width: int, language: Optional[str] = None) -> str:
+    text = truncate_visual(value, width, language)
+    remaining = max(width - visual_display_width(text, language), 0.0)
+    left = int(round(remaining / 2))
+    right = max(width - left - int(round(visual_display_width(text, language))), 0)
     return (" " * left + text + " " * right).rstrip()
 
 

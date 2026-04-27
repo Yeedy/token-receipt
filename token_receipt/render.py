@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import math
 import re
 import time
 from typing import List
@@ -13,14 +14,15 @@ from .models import (
     PriceEstimate,
     UsageSnapshot,
     canonical_language,
-    center_text,
+    center_text_visual,
     display_time,
-    display_width,
     fmt_int,
     normalize,
     parse_iso,
     printable_receipt_char,
-    truncate,
+    truncate_visual,
+    visual_char_width,
+    visual_display_width,
 )
 
 
@@ -75,28 +77,29 @@ LABELS = {
 
 
 class Receipt:
-    def __init__(self, width: int) -> None:
+    def __init__(self, width: int, language: str = DEFAULT_LANGUAGE) -> None:
         if width not in ALLOWED_WIDTHS:
             raise SystemExit(f"--width must be one of {ALLOWED_WIDTHS}")
         self.width = width
+        self.language = canonical_language(language)
         self.lines: List[str] = []
 
     def add(self, text: str = "") -> None:
-        self.lines.append(truncate(text, self.width))
+        self.lines.append(truncate_visual(text, self.width, self.language))
 
     def center(self, text: str = "") -> None:
-        self.add(center_text(text, self.width))
+        self.add(center_text_visual(text, self.width, self.language))
 
     def rule(self, char: str = "-") -> None:
         self.add(char * self.width)
 
     def kv(self, left: str, right: str) -> None:
         right = str(right)
-        right_width = display_width(right)
-        max_left = max(1, self.width - right_width - 1)
-        left = truncate(left, max_left)
-        left_width = display_width(left)
-        spaces = max(1, self.width - left_width - right_width)
+        right_width = visual_display_width(right, self.language)
+        max_left = max(1, int(self.width - right_width - 1))
+        left = truncate_visual(left, max_left, self.language)
+        left_width = visual_display_width(left, self.language)
+        spaces = max(1, int(math.floor(self.width - left_width - right_width)))
         self.add(left + " " * spaces + right)
 
     def blank(self) -> None:
@@ -104,7 +107,7 @@ class Receipt:
 
     def text(self) -> str:
         for line in self.lines:
-            if display_width(line) > self.width:
+            if visual_display_width(line, self.language) > self.width + 0.51:
                 raise AssertionError(f"line exceeds width: {line!r}")
             for char in line:
                 if not printable_receipt_char(char):
@@ -133,7 +136,7 @@ def barcode(seed: str, width: int) -> str:
     patterns = ["|", "||", "| ", " ||", "|||", " |"]
     raw = "".join(patterns[int(char, 16) % len(patterns)] for char in digest)
     target = min(width - 8, max(24, width - 16))
-    return center_text(raw[:target], width)
+    return center_text_visual(raw[:target], width, "en")
 
 
 def auto_brand(provider: str, source: str, explicit: str) -> str:
@@ -154,8 +157,8 @@ def add_centered_block(receipt: Receipt, lines: List[str]) -> None:
     nonempty = [line for line in lines if line.strip()]
     shared_indent = min((len(line) - len(line.lstrip(" ")) for line in nonempty), default=0)
     normalized = [line[shared_indent:] for line in lines]
-    block_width = max(display_width(line.rstrip()) for line in normalized)
-    left_pad = max((receipt.width - block_width) // 2, 0)
+    block_width = max(visual_display_width(line.rstrip(), receipt.language) for line in normalized)
+    left_pad = max(int(round((receipt.width - block_width) / 2)), 0)
     for line in normalized:
         receipt.add(" " * left_pad + line.rstrip())
 
@@ -234,7 +237,7 @@ def product_name(snapshot: UsageSnapshot) -> str:
     if "trae" in model_key:
         return "Trae"
     if snapshot.model and snapshot.model != "UNRECORDED":
-        return truncate(snapshot.model, 16)
+        return truncate_visual(snapshot.model, 16, "en")
     if provider_key == "anthropic":
         return "Claude"
     if provider_key == "openai":
@@ -661,12 +664,12 @@ def zh_footer_encouraging_candidates(theme: str) -> List[str]:
     ]
 
 
-def split_display_text(text: str, max_width: int) -> tuple[str, str]:
+def split_display_text(text: str, max_width: int, language: str) -> tuple[str, str]:
     left: list[str] = []
-    width = 0
+    width = 0.0
     index = 0
     for index, char in enumerate(text):
-        char_width = display_width(char)
+        char_width = visual_char_width(char, language)
         if width + char_width > max_width:
             break
         left.append(char)
@@ -680,7 +683,7 @@ def fit_footer_text(text: str, width: int, language: str) -> str:
     language = canonical_language(language)
     max_line = min(width, 40)
     normalized = re.sub(r"\s+", " ", text.strip())
-    if display_width(normalized) <= max_line:
+    if visual_display_width(normalized, language) <= max_line:
         return normalized
 
     words = normalized.split()
@@ -688,13 +691,13 @@ def fit_footer_text(text: str, width: int, language: str) -> str:
         for split_at in range(len(words) - 1, 0, -1):
             left = " ".join(words[:split_at])
             right = " ".join(words[split_at:])
-            if display_width(left) <= max_line and display_width(right) <= max_line:
+            if visual_display_width(left, language) <= max_line and visual_display_width(right, language) <= max_line:
                 return left + "\n" + right
 
-    left, right = split_display_text(normalized, max_line)
+    left, right = split_display_text(normalized, max_line, language)
     if not right:
         return left
-    return left + "\n" + truncate(right, max_line)
+    return left + "\n" + truncate_visual(right, max_line, language)
 
 
 def auto_footer(snapshot: UsageSnapshot, estimate: PriceEstimate, tone: str, width: int, language: str, hint: str = "") -> str:
@@ -733,7 +736,7 @@ def footer_lines(text: str, width: int, language: str) -> List[str]:
             continue
         if language == "en":
             raw = raw.upper()
-        lines.append(truncate(raw, width))
+        lines.append(truncate_visual(raw, width, language))
     return lines or [""]
 
 
@@ -773,7 +776,7 @@ def render_receipt(
     provider = snapshot.provider.upper() if snapshot.provider else "UNKNOWN"
     rid = receipt_id(snapshot, snapshot.provider)
     footer_text = auto_footer(snapshot, estimate, footer_tone, width, language, conversation_hint) if footer == "auto" else footer
-    receipt = Receipt(width)
+    receipt = Receipt(width, language)
 
     add_logo(receipt, agent_tool, language)
     receipt.blank()
