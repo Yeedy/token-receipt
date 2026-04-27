@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from token_receipt.data import requested_agent_tool, runtime_agent_tool  # noqa: E402
+from token_receipt.data import requested_agent_tool, runtime_agent_tool, runtime_claude_session_id  # noqa: E402
 from token_receipt.models import printable_receipt_char, visual_display_width  # noqa: E402
 
 SCRIPT = ROOT / "scripts" / "token_receipt.py"
@@ -169,12 +169,40 @@ def make_claude_usage_fixture() -> tuple[Path, Path]:
     return usage, transcript
 
 
+def make_claude_home_fixture() -> tuple[Path, str]:
+    home = Path(tempfile.mkdtemp(prefix="token-receipt-claude-home-"))
+    usage_dir = home / ".claude" / "usage-data" / "session-meta"
+    project_dir = home / ".claude" / "projects" / "demo"
+    usage_dir.mkdir(parents=True, exist_ok=True)
+    project_dir.mkdir(parents=True, exist_ok=True)
+    session_id = "claude-current-session"
+    (usage_dir / f"{session_id}.json").write_text(
+        json.dumps(
+            {
+                "session_id": session_id,
+                "start_time": "2026-04-27T04:00:00Z",
+                "input_tokens": 12487,
+                "output_tokens": 3215,
+            },
+            ensure_ascii=True,
+        ),
+        encoding="utf-8",
+    )
+    (project_dir / f"{session_id}.jsonl").write_text(
+        json.dumps({"message": {"model": "claude-sonnet-4.5"}}, ensure_ascii=True) + "\n",
+        encoding="utf-8",
+    )
+    return home, session_id
+
+
 def main() -> int:
     fixture = make_session_fixture()
     claude_usage, claude_transcript = make_claude_usage_fixture()
+    claude_home, claude_session_id = make_claude_home_fixture()
 
     assert runtime_agent_tool({"CODEX_THREAD_ID": "thread"}) == "codex"
     assert runtime_agent_tool({"CLAUDECODE": "1"}) == "claude-code"
+    assert runtime_claude_session_id({"CLAUDE_SESSION_ID": "abc"}) == "abc"
     assert requested_agent_tool(SimpleNamespace(agent_tool=None, brand=None), {"CODEX_INTERNAL_ORIGINATOR_OVERRIDE": "Codex Desktop"}) == "codex"
     assert requested_agent_tool(SimpleNamespace(agent_tool=None, brand="generic"), {"CODEX_INTERNAL_ORIGINATOR_OVERRIDE": "Codex Desktop"}) == "codex"
     assert requested_agent_tool(SimpleNamespace(agent_tool="claude-code", brand=None), {"CODEX_THREAD_ID": "thread"}) == "claude-code"
@@ -356,6 +384,32 @@ def main() -> int:
     assert "token_usage_fields_available" in fields
     assert "cache_write_tokens" in fields
     assert "turn_context.model" in fields
+
+    write_target = Path(tempfile.mkdtemp(prefix="token-receipt-write-")) / "receipt.txt"
+    quiet_stdout = run_case(
+        "--provider", "anthropic",
+        "--agent-tool", "claude-code",
+        "--model", "claude-sonnet-4.5",
+        "--input-tokens", "12487",
+        "--output-tokens", "3215",
+        "--write", str(write_target),
+    )
+    assert quiet_stdout == ""
+    saved_receipt = write_target.read_text(encoding="utf-8")
+    assert "CLAUDE CODE" in saved_receipt
+    assert "THANK YOU FOR CODING WITH Claude" in saved_receipt
+
+    claude_env = os.environ.copy()
+    claude_env["HOME"] = str(claude_home)
+    claude_env["CLAUDECODE"] = "1"
+    claude_env["CLAUDE_SESSION_ID"] = claude_session_id
+    claude_fields = run_case(
+        "--show-fields",
+        env=claude_env,
+    )
+    claude_report = json.loads(claude_fields)
+    assert claude_report["source"].endswith(f"/{claude_session_id}.json")
+    assert claude_report["model"] == "claude-sonnet-4.5"
 
     hook_env = os.environ.copy()
     hook_env["TOKEN_RECEIPT_CLAUDE_USAGE_PATH"] = str(claude_usage)

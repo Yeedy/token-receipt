@@ -259,9 +259,12 @@ python3 scripts/token_receipt.py --agent-tool trae --provider openai --model gpt
 python3 scripts/token_receipt.py --width 48 --stream
 python3 scripts/token_receipt.py --agent-tool codex --language en
 python3 scripts/token_receipt.py --agent-tool claude-code --language zh-CN
+python3 scripts/token_receipt.py --agent-tool claude-code --session ~/.claude/usage-data/session-meta/${CLAUDE_SESSION_ID}.json --write /tmp/token-receipt.txt
 python3 scripts/token_receipt.py --footer-tone snarky --conversation-summary "one more revision for visual polish"
 python3 scripts/token_receipt.py --provider anthropic --agent-tool claude-code --model claude-sonnet-4.5 --input-tokens 12487 --cached-input-tokens 8742 --output-tokens 3215
 ```
+
+在 Claude Code 的 skill 上下文里，`${CLAUDE_SESSION_ID}` 会被替换成当前会话 id。
 
 这些参数翻译成人话：
 
@@ -277,6 +280,8 @@ python3 scripts/token_receipt.py --provider anthropic --agent-tool claude-code -
   打印英文版小票。
 - `--language zh-CN`
   打印中文版小票，但不另起一套排版逻辑。
+- `--write /tmp/token-receipt.txt`
+  把小票静默写进文件，不往 Bash stdout 里刷屏。这是 Claude Code 聊天里更干净的调用方式。
 - `--stream`
   让它像一台知道你花多了的小票机一样吐单。
 

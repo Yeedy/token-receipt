@@ -37,6 +37,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--context-window", type=int)
     parser.add_argument("--receipt-seed")
     parser.add_argument("--show-fields", action="store_true", help="Print a JSON report of fields available from the selected source instead of a receipt.")
+    parser.add_argument("--write", type=Path, help="Write the rendered receipt to a file and suppress stdout. Useful when a host tool would otherwise echo the receipt multiple times.")
     parser.add_argument("--stream", action="store_true", default=None, help="Print receipt one line at a time, like a receipt printer.")
     parser.add_argument("--no-stream", dest="stream", action="store_false", help="Print receipt all at once even in an interactive terminal.")
     parser.add_argument("--stream-delay", type=float, default=0.03, help="Delay in seconds between lines when --stream is used.")
@@ -54,13 +55,22 @@ def main(argv: Optional[List[str]] = None) -> int:
         snapshot.model = args.model
 
     if args.show_fields:
-        print(json.dumps(available_fields_report(snapshot), indent=2, ensure_ascii=True))
+        fields_json = json.dumps(available_fields_report(snapshot), indent=2, ensure_ascii=True)
+        if args.write:
+            args.write.parent.mkdir(parents=True, exist_ok=True)
+            args.write.write_text(fields_json + "\n", encoding="utf-8")
+            return 0
+        print(fields_json)
         return 0
 
     estimate = estimate_cost(snapshot, args.pricing)
     agent_tool = auto_brand(snapshot.provider, snapshot.source, args.agent_tool or args.brand or "auto")
     conversation_hint = args.conversation_summary or args.conversation_hint
     receipt_text = render_receipt(snapshot, estimate, args.width, agent_tool, args.footer, args.footer_tone, conversation_hint, canonical_language(args.language))
+    if args.write:
+        args.write.parent.mkdir(parents=True, exist_ok=True)
+        args.write.write_text(receipt_text + "\n", encoding="utf-8")
+        return 0
     stream = sys.stdout.isatty() if args.stream is None else args.stream
     print_receipt(receipt_text, stream, args.stream_delay)
     return 0

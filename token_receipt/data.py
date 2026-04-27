@@ -339,6 +339,15 @@ def runtime_agent_tool(env: Optional[Mapping[str, str]] = None) -> Optional[str]
     return None
 
 
+def runtime_claude_session_id(env: Optional[Mapping[str, str]] = None) -> Optional[str]:
+    runtime = env or os.environ
+    for key in ("CLAUDE_SESSION_ID",):
+        value = runtime.get(key)
+        if value:
+            return value.strip()
+    return None
+
+
 def requested_agent_tool(args: argparse.Namespace, env: Optional[Mapping[str, str]] = None) -> Optional[str]:
     explicit = getattr(args, "agent_tool", None)
     if explicit and explicit != "auto":
@@ -363,7 +372,12 @@ def resolve_snapshot(args: argparse.Namespace) -> UsageSnapshot:
     agent_tool = requested_agent_tool(args)
 
     if agent_tool == "claude-code":
-        claude_path = newest_claude_usage_file()
+        claude_path = None
+        session_id = runtime_claude_session_id()
+        if session_id:
+            claude_path = find_claude_usage_for_session(session_id)
+        if claude_path is None:
+            claude_path = newest_claude_usage_file()
         if claude_path:
             return load_snapshot_from_claude_usage(claude_path, args.model, args.provider)
         raise SystemExit(
