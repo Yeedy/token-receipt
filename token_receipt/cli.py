@@ -18,7 +18,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--session", type=Path, help="Codex JSONL session path. Defaults to newest local session.")
     parser.add_argument("--scope", choices=("latest-turn", "session"), default="latest-turn")
     parser.add_argument("--width", type=int, choices=ALLOWED_WIDTHS, default=48)
-    parser.add_argument("--agent-tool", choices=("auto", "codex", "claude-code", "trae", "generic"), default=None, help="Agent/tool logo source. Use codex, claude-code, or trae for the matching agent logo.")
+    parser.add_argument("--agent-tool", choices=("auto", "codex", "claude-code", "trae", "generic"), default=None, help="Software/logo source. When auto-discovering local data, an explicit software also prioritizes that software's session source.")
     parser.add_argument("--brand", choices=("auto", "codex", "claude-code", "trae", "generic"), default=None, help="Backward-compatible alias for --agent-tool.")
     parser.add_argument("--pricing", type=Path, default=DEFAULT_PRICING)
     parser.add_argument("--footer", default=DEFAULT_FOOTER, help="Custom footer line, or 'auto' for model-aware footer.")

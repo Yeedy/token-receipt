@@ -4,21 +4,24 @@
     <a href="./README.zh-CN.md">简体中文</a>
   </p>
   <h1>token-receipt</h1>
-  <p><strong>Turn AI token usage into a thermal-paper artifact.</strong></p>
+  <p><strong>Turn AI token usage into a receipt with a punchline.</strong></p>
   <p>
     <code>ASCII-native</code>
     <code>pricing-aware</code>
+    <code>software-aware</code>
     <code>Claude Code</code>
     <code>Codex</code>
     <code>Trae</code>
-    <code>screenshot-friendly</code>
   </p>
   <p>
-    No dashboards. No CSV. No fake serenity.
+    No dashboard. No spreadsheet. No spiritual coping mechanism.
     <br />
-    Just a receipt that arrives before your emotional recovery does.
+    Just a bill that shows up before your denial does.
   </p>
 </div>
+
+> Inspired by [chrishutchinson/claude-receipts](https://github.com/chrishutchinson/claude-receipts).  
+> Same receipt instinct. Different attitude. More software. Meaner footer.
 
 ---
 
@@ -28,16 +31,16 @@ Most token tools explain usage.
 
 `token-receipt` itemizes the damage.
 
-It turns invisible AI burn into something you can paste into chat, screenshot instantly, and feel in your spine.
+It turns invisible AI spend into a thermal-paper artifact you can paste into chat, screenshot instantly, and post with a straight face.
 
-This project is built on three rules:
+Three rules run the whole project:
 
 - `Visual first`
   The output should look like checkout, not admin UI.
 - `Data honest`
-  Real logs first. Official pricing second. Unknowns stay unknown.
+  Real local logs first. Official pricing second. Unknowns stay unknown.
 - `Artifact over analytics`
-  If it is not shareable, it is not done.
+  If it is not screenshot-worthy, it is not finished.
 
 ---
 
@@ -79,18 +82,79 @@ PRICE DATE                            2026-04-25
 
 ---
 
-## What it does
+## The footer is the feature
 
-- Reads the newest local Codex session from `~/.codex/sessions` or `~/.codex/archived_sessions`
-- Falls back to Claude Code usage logs from `~/.claude/usage-data/session-meta`
-- Renders branded headers for `Claude Code`, `Codex`, and `Trae`
-- Estimates pricing from `references/pricing.json`
-- Streams line-by-line in TTY mode for a receipt-printer feel
-- Supports manual mode when you already know the token counts
-- Installs a Claude Code `SessionEnd` hook for automatic receipts
-- Refuses to invent numbers when a model price is unknown
+The footer is not decoration.
+It is the coup de grace.
 
-The receipt intentionally stays conservative about what it prints:
+This project is built around the idea that the last line on the receipt should feel like the model watched you spend context on one more revision and decided to leave a note.
+
+Examples:
+
+- `THE LOGO LOOKS CALM. THE BILL DOES NOT.`
+- `REASONING WAS BILLED SEPARATELY.`
+- `THE LAST REVISION WAS NOT THE LAST.`
+
+If the receipt looks good but the footer has no sting, the job is not done.
+
+---
+
+## Software support
+
+When you explicitly choose a software source, `token-receipt` prioritizes that software's local session data instead of quietly reading some other app's logs.
+
+| Software | Status | macOS | Windows | Notes |
+| --- | --- | --- | --- | --- |
+| Codex | `supported now` | `~/.codex/sessions` and `~/.codex/archived_sessions` | `%USERPROFILE%\.codex\sessions` and `%USERPROFILE%\.codex\archived_sessions` | Reads JSONL session logs directly |
+| Claude Code | `supported now` | `~/.claude/usage-data/session-meta` and `~/.claude/projects` | `%USERPROFILE%\.claude\usage-data\session-meta` and `%USERPROFILE%\.claude\projects` | Uses usage logs for token counts and project transcripts for model lookup |
+| Trae | `manual receipt mode now` | `~/Library/Application Support/Trae/User/workspaceStorage` and `.../globalStorage` | `%APPDATA%\Trae\User\workspaceStorage` and `... \globalStorage` | Trae stores chat state in VS Code-style app storage / SQLite, so automatic transcript import is not shipped yet |
+
+Notes:
+
+- Some Trae builds use `Trae CN` / `.trae-cn` instead of `Trae`.
+- In current releases, `--agent-tool codex` and `--agent-tool claude-code` use software-specific auto-discovery.
+- In current releases, `--agent-tool trae` is honest: it tells you to use manual mode instead of pretending Trae has clean JSONL session logs.
+
+---
+
+## Model coverage
+
+There are two layers of support:
+
+1. `Receipt rendering`
+   Any model name can be rendered in manual mode.
+2. `Price estimation`
+   Cost only shows up when the model exists in `references/pricing.json`.
+
+Current mapped model families include:
+
+- `OpenAI`
+  GPT-5 family, Codex family, GPT-4.1, GPT-4o, `o3`, `o4-mini`
+- `Anthropic`
+  Claude Opus, Sonnet, and Haiku families
+- `Google`
+  Gemini 2.x and 3.x families
+- `Moonshot`
+  Kimi K2 family
+- `DeepSeek`
+  DeepSeek V4 family
+- `Alibaba`
+  Qwen family
+- `Zhipu`
+  GLM family
+- `Xiaomi`
+  MiMo family
+- `MiniMax`
+  M2 family
+
+If your model is not mapped yet, the receipt still renders.
+The price just refuses to roleplay.
+
+---
+
+## What it actually reads
+
+Current receipts intentionally stay conservative about what they print:
 
 - `Input Tokens`
 - `Output Tokens`
@@ -99,28 +163,9 @@ The receipt intentionally stays conservative about what it prints:
 - `Reasoning Tokens` when actually available
 - `Cache Write Tokens` when actually available
 
-In other words:
-better to omit a field than lie with confidence.
+That policy is deliberate.
 
----
-
-## Host support
-
-| Host | Input source | Trigger mode |
-| --- | --- | --- |
-| Codex | `~/.codex/sessions` JSONL | phrase-triggered |
-| Claude Code | `~/.claude/usage-data/session-meta` + transcript lookup | phrase-triggered or `SessionEnd` auto-trigger |
-| Trae | manual/provider-driven rendering path | phrase-triggered |
-
-Two details matter:
-
-- The top logo is chosen by the agent tool.
-- The thank-you line is chosen by the actual model/provider.
-
-So yes, a `Codex` receipt can still say `THANK YOU FOR CODING WITH ChatGPT`.
-
-That is not a bug.
-That is billing realism.
+Better to omit a field than lie with confidence.
 
 ---
 
@@ -133,54 +178,36 @@ It runs on Python's standard library.
 python3 scripts/token_receipt.py
 ```
 
-That command tries to find your newest local session and render a receipt for the latest turn.
-
-Useful variants:
+Useful software-specific examples:
 
 ```bash
-python3 scripts/token_receipt.py --scope session
-python3 scripts/token_receipt.py --show-fields
-python3 scripts/token_receipt.py --agent-tool codex --model gpt-5.4 --width 48 --stream
-python3 scripts/token_receipt.py --provider anthropic --agent-tool claude-code --model claude-sonnet-4.5 --input-tokens 12487 --cached-input-tokens 8742 --output-tokens 3215
+python3 scripts/token_receipt.py --agent-tool codex
+python3 scripts/token_receipt.py --agent-tool claude-code
+python3 scripts/token_receipt.py --agent-tool codex --scope session
+python3 scripts/token_receipt.py --agent-tool claude-code --show-fields
+python3 scripts/token_receipt.py --agent-tool trae --provider openai --model gpt-5.4 --input-tokens 12487 --output-tokens 3215
+```
+
+Useful rendering variants:
+
+```bash
+python3 scripts/token_receipt.py --width 48 --stream
 python3 scripts/token_receipt.py --footer-tone snarky --conversation-summary "one more revision for visual polish"
+python3 scripts/token_receipt.py --provider anthropic --agent-tool claude-code --model claude-sonnet-4.5 --input-tokens 12487 --cached-input-tokens 8742 --output-tokens 3215
 ```
 
 What those flags mean in plain English:
 
-- `--scope session`
-  Print the whole bill, not just the last turn.
+- `--agent-tool codex`
+  Read Codex data, not Claude's.
+- `--agent-tool claude-code`
+  Read Claude Code data, not Codex's.
+- `--agent-tool trae`
+  Use Trae branding. For now, bring your own token counts.
 - `--show-fields`
-  See what the source log can actually prove.
+  Ask the logs what they can actually prove.
 - `--stream`
   Print like a machine that knows you spent too much.
-
----
-
-## Manual mode
-
-If you already know the token numbers, bypass log discovery completely:
-
-```bash
-python3 scripts/token_receipt.py \
-  --provider openai \
-  --agent-tool codex \
-  --model gpt-5.4 \
-  --input-tokens 12487 \
-  --cached-input-tokens 8742 \
-  --output-tokens 3215
-```
-
-You can also pass:
-
-- `--reasoning-output-tokens`
-- `--cache-write-tokens`
-- `--context-window`
-- `--total-tokens`
-- `--footer`
-- `--footer-tone`
-- `--conversation-summary`
-
-This is the "I already know the damage, print the receipt anyway" path.
 
 ---
 
@@ -202,7 +229,7 @@ This wires `token-receipt` into Claude Code's `SessionEnd` hook.
 
 The conversation ends.
 The receipt arrives.
-You do not get to pretend it was free.
+The denial window closes.
 
 ---
 
@@ -216,47 +243,7 @@ This project is intentionally opinionated.
 - No pretending platform-routed pricing is a direct vendor bill
 - No sanding away the weird, uncomfortable energy of a real receipt
 
-The footer matters too.
-
-It should sound like the model left a note on the bill after watching you spend context on one more revision.
-
----
-
-## Project structure
-
-```text
-token-receipt/
-├── README.md
-├── README.zh-CN.md
-├── SKILL.md
-├── scripts/
-│   ├── token_receipt.py
-│   ├── validate_receipt.py
-│   ├── install_claude_auto_trigger.py
-│   └── uninstall_claude_auto_trigger.py
-├── token_receipt/
-│   ├── cli.py
-│   ├── data.py
-│   ├── hooks.py
-│   ├── models.py
-│   └── render.py
-└── references/
-    ├── pricing.json
-    ├── receipt-style.md
-    ├── available-fields.md
-    └── trigger-phrases.md
-```
-
-Core responsibilities:
-
-- `token_receipt/data.py`
-  Session discovery, usage extraction, pricing lookup
-- `token_receipt/render.py`
-  Logo blocks, layout, footer voice, receipt text
-- `token_receipt/hooks.py`
-  Claude Code `SessionEnd` integration
-- `scripts/token_receipt.py`
-  Thin CLI entrypoint
+If the output feels too clean, it probably stopped feeling true.
 
 ---
 

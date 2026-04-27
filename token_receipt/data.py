@@ -303,21 +303,87 @@ def is_claude_usage_file(path: Path) -> bool:
     return False
 
 
+def trae_storage_hints() -> tuple[str, ...]:
+    home = Path.home()
+    return (
+        str(home / "Library" / "Application Support" / "Trae" / "User" / "workspaceStorage"),
+        str(home / "Library" / "Application Support" / "Trae" / "User" / "globalStorage"),
+        str(home / "Library" / "Application Support" / "Trae CN" / "User" / "workspaceStorage"),
+        str(home / "Library" / "Application Support" / "Trae CN" / "User" / "globalStorage"),
+        r"%APPDATA%\Trae\User\workspaceStorage",
+        r"%APPDATA%\Trae\User\globalStorage",
+        r"%APPDATA%\Trae CN\User\workspaceStorage",
+        r"%APPDATA%\Trae CN\User\globalStorage",
+    )
+
+
+def trae_manual_mode_error() -> str:
+    hints = "\n".join(f"  - {path}" for path in trae_storage_hints())
+    return (
+        "Automatic Trae session import is not implemented yet.\n"
+        "Trae stores chat state in app storage and workspace SQLite files rather than simple JSONL session logs.\n"
+        "Known Trae storage locations include:\n"
+        f"{hints}\n"
+        "Use manual mode for now: provide --input-tokens and --output-tokens."
+    )
+
+
 def resolve_snapshot(args: argparse.Namespace) -> UsageSnapshot:
     if has_manual_usage(args):
         return load_manual_snapshot(args)
 
-    session_path = args.session or newest_session_file()
-    if session_path:
-        if is_claude_usage_file(session_path):
-            return load_snapshot_from_claude_usage(session_path, args.model, args.provider)
-        return load_snapshot_from_session(session_path, args.scope, args.model, args.provider)
+    if args.session:
+        if is_claude_usage_file(args.session):
+            return load_snapshot_from_claude_usage(args.session, args.model, args.provider)
+        return load_snapshot_from_session(args.session, args.scope, args.model, args.provider)
 
+    agent_tool = getattr(args, "agent_tool", None) or getattr(args, "brand", None) or "auto"
+
+    if agent_tool == "claude-code":
+        claude_path = newest_claude_usage_file()
+        if claude_path:
+            return load_snapshot_from_claude_usage(claude_path, args.model, args.provider)
+        raise SystemExit(
+            "No Claude Code usage log found under ~/.claude/usage-data/session-meta. "
+            "If you are on Windows, the equivalent home-relative path is %USERPROFILE%\\.claude\\usage-data\\session-meta."
+        )
+
+    if agent_tool == "codex":
+        session_path = newest_session_file()
+        if session_path:
+            return load_snapshot_from_session(session_path, args.scope, args.model, args.provider)
+        raise SystemExit(
+            "No Codex session file found under ~/.codex/sessions or ~/.codex/archived_sessions. "
+            "If you are on Windows, the equivalent home-relative paths are %USERPROFILE%\\.codex\\sessions and %USERPROFILE%\\.codex\\archived_sessions."
+        )
+
+    if agent_tool == "trae":
+        raise SystemExit(trae_manual_mode_error())
+
+    codex_path = newest_session_file()
     claude_path = newest_claude_usage_file()
-    if claude_path:
-        return load_snapshot_from_claude_usage(claude_path, args.model, args.provider)
 
-    raise SystemExit("No Codex or Claude Code session file found. Provide --input-tokens and --output-tokens for manual mode.")
+    candidates = []
+    if codex_path:
+        candidates.append(("codex", codex_path))
+    if claude_path:
+        candidates.append(("claude", claude_path))
+
+    if candidates:
+        candidates.sort(key=lambda x: x[1].stat().st_mtime, reverse=True)
+        source_type, path = candidates[0]
+
+        if source_type == "codex":
+            if is_claude_usage_file(path):
+                return load_snapshot_from_claude_usage(path, args.model, args.provider)
+            return load_snapshot_from_session(path, args.scope, args.model, args.provider)
+        if source_type == "claude":
+            return load_snapshot_from_claude_usage(path, args.model, args.provider)
+
+    raise SystemExit(
+        "No Codex or Claude Code session file found. "
+        "For Trae, automatic import is not implemented yet; provide --input-tokens and --output-tokens for manual mode."
+    )
 
 
 def load_pricing(path: Path) -> Dict[str, Any]:
