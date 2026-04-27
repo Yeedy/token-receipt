@@ -46,8 +46,13 @@ Three rules run the whole project:
 
 ## Preview
 
-```text
-                    ▐▛███▜▌
+<table>
+<tr>
+<td valign="top"><strong>English</strong></td>
+<td valign="top"><strong>中文</strong></td>
+</tr>
+<tr>
+<td valign="top"><pre>                    ▐▛███▜▌
                     ▜█████▛
                      ▘▘ ▝▝
                   CLAUDE CODE
@@ -77,8 +82,44 @@ PRICE DATE                            2026-04-25
     THE LOGO LOOKS CALM. THE BILL DOES NOT.
 
         ||| ||||| || ||| | | || |||  | |
-           CC_20260427_151928_7CE382
-```
+           CC_20260427_151928_7CE382</pre></td>
+<td valign="top"><pre>                    ▐▛███▜▌
+                    ▜█████▛
+                     ▘▘ ▝▝
+                  CLAUDE CODE
+
+                感谢使用 Claude
+       小票号: CC_20260427_155533_9A83E3
+           日期: 2026-04-27 15:55:33
+------------------------------------------------
+供应商                                 ANTHROPIC
+模型                           claude-sonnet-4.5
+已用上下文                                12,487
+------------------------------------------------
+项目                                       TOKEN
+------------------------------------------------
+输入 Tokens                               12,487
+输出 Tokens                                3,215
+缓存读取                                   8,742
+推理 Tokens                                  128
+缓存写入                                   1,024
+------------------------------------------------
+总计                               15,702 Tokens
+------------------------------------------------
+USD 预估                               $0.062851
+价格映射                       claude-sonnet-4.5
+价格日期                              2026-04-25
+------------------------------------------------
+             画面稳了，预算死了。
+
+         ||| |||||  ||||||| |||||||||  |
+           CC_20260427_155533_9A83E3</pre></td>
+</tr>
+</table>
+
+Same receipt.
+Different language.
+Same emotional outcome.
 
 ---
 
@@ -94,6 +135,8 @@ Examples:
 - `THE LOGO LOOKS CALM. THE BILL DOES NOT.`
 - `REASONING WAS BILLED SEPARATELY.`
 - `THE LAST REVISION WAS NOT THE LAST.`
+- `画面稳了，预算死了。`
+- `最后一版这个词，本来就不诚实。`
 
 If the receipt looks good but the footer has no sting, the job is not done.
 

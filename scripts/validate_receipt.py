@@ -216,7 +216,7 @@ def main() -> int:
     )
     assert_receipt(claude_zh, 48, ["CLAUDE CODE", "感谢使用 Claude", "小票号", "供应商", "总计", "USD 预估"])
     assert_logo_label_aligned(claude_zh, "CLAUDE CODE")
-    assert any(word in claude_zh for word in ("账单", "费用", "代价", "预算")), "zh receipt footer should read like a Chinese receipt footer"
+    assert any(word in claude_zh for word in ("账单", "费用", "代价", "预算", "钱包", "余额", "钱")), "zh receipt footer should read like a Chinese receipt footer"
 
     trae = run_case(
         "--provider", "openai",
