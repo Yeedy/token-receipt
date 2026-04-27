@@ -90,32 +90,32 @@ PRICE DATE                            2026-04-25
                      ▘▘ ▝▝
                   CLAUDE CODE
 
-                感谢使用 Claude
-       小票号: CC_20260427_155533_9A83E3
-           日期: 2026-04-27 15:55:33
+                 感谢使用 Claude
+        小票号: CC_20260427_155533_9A83E3
+            日期: 2026-04-27 15:55:33
 ------------------------------------------------
-供应商                                 ANTHROPIC
-模型                           claude-sonnet-4.5
-已用上下文                                12,487
+供应商                                  ANTHROPIC
+模型                            claude-sonnet-4.5
+已用上下文                                  12,487
 ------------------------------------------------
-项目                                       TOKEN
+项目                                        TOKEN
 ------------------------------------------------
-输入 Tokens                               12,487
-输出 Tokens                                3,215
-缓存读取                                   8,742
-推理 Tokens                                  128
-缓存写入                                   1,024
+输入 Tokens                                12,487
+输出 Tokens                                 3,215
+缓存读取                                     8,742
+推理 Tokens                                   128
+缓存写入                                     1,024
 ------------------------------------------------
-总计                               15,702 Tokens
+总计                                15,702 Tokens
 ------------------------------------------------
-USD 预估                               $0.062851
-价格映射                       claude-sonnet-4.5
-价格日期                              2026-04-25
+USD 预估                                $0.062851
+价格映射                         claude-sonnet-4.5
+价格日期                                2026-04-25
 ------------------------------------------------
-             画面稳了，预算死了。
+                画面稳了，预算死了。
 
          ||| |||||  ||||||| |||||||||  |
-           CC_20260427_155533_9A83E3
+            CC_20260427_155533_9A83E3
 ```
 
 Same receipt.
@@ -145,7 +145,8 @@ If the receipt looks good but the footer has no sting, the job is not done.
 
 ## Software support
 
-When you explicitly choose a software source, `token-receipt` prioritizes that software's local session data instead of quietly reading some other app's logs.
+`token-receipt` is supposed to bill the software you are actually using.
+It should not quietly read another app's logs just because they were newer.
 
 | Software | Status | macOS | Windows | Notes |
 | --- | --- | --- | --- | --- |
@@ -156,7 +157,9 @@ When you explicitly choose a software source, `token-receipt` prioritizes that s
 Notes:
 
 - Some Trae builds use `Trae CN` / `.trae-cn` instead of `Trae`.
-- In current releases, `--agent-tool codex` and `--agent-tool claude-code` use software-specific auto-discovery.
+- Inside Codex, the runtime can be detected and `token-receipt` reads Codex logs.
+- Inside Claude Code's SessionEnd hook, `token-receipt` reads Claude Code usage logs.
+- If you run the script from a plain shell and both Codex and Claude Code logs exist locally, pass `--agent-tool` explicitly. Cross-software guessing is intentionally disabled.
 - In current releases, `--agent-tool trae` is honest: it tells you to use manual mode instead of pretending Trae has clean JSONL session logs.
 
 ---
@@ -222,6 +225,9 @@ It runs on Python's standard library.
 python3 scripts/token_receipt.py
 ```
 
+If you run that inside Codex or Claude Code, the current software can be detected automatically.
+If you run it from a plain shell with multiple local software logs present, add `--agent-tool`.
+
 Useful software-specific examples:
 
 ```bash
@@ -236,6 +242,7 @@ Useful rendering variants:
 
 ```bash
 python3 scripts/token_receipt.py --width 48 --stream
+python3 scripts/token_receipt.py --agent-tool codex --language en
 python3 scripts/token_receipt.py --agent-tool claude-code --language zh-CN
 python3 scripts/token_receipt.py --footer-tone snarky --conversation-summary "one more revision for visual polish"
 python3 scripts/token_receipt.py --provider anthropic --agent-tool claude-code --model claude-sonnet-4.5 --input-tokens 12487 --cached-input-tokens 8742 --output-tokens 3215
@@ -244,13 +251,15 @@ python3 scripts/token_receipt.py --provider anthropic --agent-tool claude-code -
 What those flags mean in plain English:
 
 - `--agent-tool codex`
-  Read Codex data, not Claude's.
+  Read Codex data and use the Codex receipt header.
 - `--agent-tool claude-code`
-  Read Claude Code data, not Codex's.
+  Read Claude Code data and use the Claude Code receipt header.
 - `--agent-tool trae`
   Use Trae branding. For now, bring your own token counts.
 - `--show-fields`
   Ask the logs what they can actually prove.
+- `--language en`
+  Print the English receipt.
 - `--language zh-CN`
   Print the Chinese receipt without forking the layout.
 - `--stream`

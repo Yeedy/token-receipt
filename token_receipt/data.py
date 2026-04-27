@@ -6,7 +6,7 @@ import argparse
 import json
 import os
 from pathlib import Path
-from typing import Any, Dict, Iterable, Optional
+from typing import Any, Dict, Iterable, Mapping, Optional
 
 from .models import (
     COMMON_TOKEN_FIELDS,
@@ -328,6 +328,29 @@ def trae_manual_mode_error() -> str:
     )
 
 
+def runtime_agent_tool(env: Optional[Mapping[str, str]] = None) -> Optional[str]:
+    runtime = env or os.environ
+    if runtime.get("CLAUDECODE"):
+        return "claude-code"
+    if any(runtime.get(key) for key in ("CODEX_THREAD_ID", "CODEX_INTERNAL_ORIGINATOR_OVERRIDE", "CODEX_SHELL")):
+        return "codex"
+    if any(runtime.get(key) for key in ("TRAE_RUNTIME", "TRAE_IDE", "TRAE_SESSION_ID")):
+        return "trae"
+    return None
+
+
+def requested_agent_tool(args: argparse.Namespace, env: Optional[Mapping[str, str]] = None) -> Optional[str]:
+    explicit = getattr(args, "agent_tool", None)
+    if explicit and explicit != "auto":
+        return explicit
+
+    brand = getattr(args, "brand", None)
+    if brand in ("codex", "claude-code", "trae"):
+        return brand
+
+    return runtime_agent_tool(env)
+
+
 def resolve_snapshot(args: argparse.Namespace) -> UsageSnapshot:
     if has_manual_usage(args):
         return load_manual_snapshot(args)
@@ -337,7 +360,7 @@ def resolve_snapshot(args: argparse.Namespace) -> UsageSnapshot:
             return load_snapshot_from_claude_usage(args.session, args.model, args.provider)
         return load_snapshot_from_session(args.session, args.scope, args.model, args.provider)
 
-    agent_tool = getattr(args, "agent_tool", None) or getattr(args, "brand", None) or "auto"
+    agent_tool = requested_agent_tool(args)
 
     if agent_tool == "claude-code":
         claude_path = newest_claude_usage_file()
@@ -363,25 +386,27 @@ def resolve_snapshot(args: argparse.Namespace) -> UsageSnapshot:
     codex_path = newest_session_file()
     claude_path = newest_claude_usage_file()
 
-    candidates = []
+    sources = []
     if codex_path:
-        candidates.append(("codex", codex_path))
+        sources.append(("codex", codex_path))
     if claude_path:
-        candidates.append(("claude", claude_path))
+        sources.append(("claude-code", claude_path))
 
-    if candidates:
-        candidates.sort(key=lambda x: x[1].stat().st_mtime, reverse=True)
-        source_type, path = candidates[0]
-
+    if len(sources) == 1:
+        source_type, path = sources[0]
         if source_type == "codex":
-            if is_claude_usage_file(path):
-                return load_snapshot_from_claude_usage(path, args.model, args.provider)
             return load_snapshot_from_session(path, args.scope, args.model, args.provider)
-        if source_type == "claude":
-            return load_snapshot_from_claude_usage(path, args.model, args.provider)
+        return load_snapshot_from_claude_usage(path, args.model, args.provider)
+
+    if len(sources) > 1:
+        raise SystemExit(
+            "Multiple software logs are available locally. "
+            "Pass --agent-tool codex or --agent-tool claude-code, or run token-receipt inside the software whose conversation you want to bill. "
+            "token-receipt does not guess across software."
+        )
 
     raise SystemExit(
-        "No Codex or Claude Code session file found. "
+        "No Codex or Claude Code session file found for the current software. "
         "For Trae, automatic import is not implemented yet; provide --input-tokens and --output-tokens for manual mode."
     )
 

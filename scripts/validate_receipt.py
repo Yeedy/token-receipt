@@ -9,11 +9,13 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from token_receipt.data import requested_agent_tool, runtime_agent_tool  # noqa: E402
 from token_receipt.models import display_width, printable_receipt_char  # noqa: E402
 
 SCRIPT = ROOT / "scripts" / "token_receipt.py"
@@ -169,6 +171,12 @@ def make_claude_usage_fixture() -> tuple[Path, Path]:
 def main() -> int:
     fixture = make_session_fixture()
     claude_usage, claude_transcript = make_claude_usage_fixture()
+
+    assert runtime_agent_tool({"CODEX_THREAD_ID": "thread"}) == "codex"
+    assert runtime_agent_tool({"CLAUDECODE": "1"}) == "claude-code"
+    assert requested_agent_tool(SimpleNamespace(agent_tool=None, brand=None), {"CODEX_INTERNAL_ORIGINATOR_OVERRIDE": "Codex Desktop"}) == "codex"
+    assert requested_agent_tool(SimpleNamespace(agent_tool=None, brand="generic"), {"CODEX_INTERNAL_ORIGINATOR_OVERRIDE": "Codex Desktop"}) == "codex"
+    assert requested_agent_tool(SimpleNamespace(agent_tool="claude-code", brand=None), {"CODEX_THREAD_ID": "thread"}) == "claude-code"
 
     codex = run_case(
         "--provider", "openai",

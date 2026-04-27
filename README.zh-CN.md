@@ -54,32 +54,32 @@
                      ▘▘ ▝▝
                   CLAUDE CODE
 
-                感谢使用 Claude
-       小票号: CC_20260427_155533_9A83E3
-           日期: 2026-04-27 15:55:33
+                 感谢使用 Claude
+        小票号: CC_20260427_155533_9A83E3
+            日期: 2026-04-27 15:55:33
 ------------------------------------------------
-供应商                                 ANTHROPIC
-模型                           claude-sonnet-4.5
-已用上下文                                12,487
+供应商                                  ANTHROPIC
+模型                            claude-sonnet-4.5
+已用上下文                                  12,487
 ------------------------------------------------
-项目                                       TOKEN
+项目                                        TOKEN
 ------------------------------------------------
-输入 Tokens                               12,487
-输出 Tokens                                3,215
-缓存读取                                   8,742
-推理 Tokens                                  128
-缓存写入                                   1,024
+输入 Tokens                                12,487
+输出 Tokens                                 3,215
+缓存读取                                     8,742
+推理 Tokens                                   128
+缓存写入                                     1,024
 ------------------------------------------------
-总计                               15,702 Tokens
+总计                                15,702 Tokens
 ------------------------------------------------
-USD 预估                               $0.062851
-价格映射                       claude-sonnet-4.5
-价格日期                              2026-04-25
+USD 预估                                $0.062851
+价格映射                         claude-sonnet-4.5
+价格日期                                2026-04-25
 ------------------------------------------------
-             画面稳了，预算死了。
+                画面稳了，预算死了。
 
          ||| |||||  ||||||| |||||||||  |
-           CC_20260427_155533_9A83E3
+            CC_20260427_155533_9A83E3
 ```
 
 **English**
@@ -145,7 +145,8 @@ footer 是最后那一刀。
 
 ## 支持哪些软件
 
-当你明确选择某个软件时，`token-receipt` 会优先读取这个软件自己的本地会话数据，而不是偷偷去扫别的软件日志。
+`token-receipt` 的原则是：你在哪个软件里用它，它就该去读那个软件自己的会话数据。
+它不该因为别的软件日志更新得更晚，就偷偷换源。
 
 | 软件 | 当前状态 | macOS | Windows | 说明 |
 | --- | --- | --- | --- | --- |
@@ -156,7 +157,9 @@ footer 是最后那一刀。
 补充说明：
 
 - 部分 Trae 构建会使用 `Trae CN` / `.trae-cn` 命名。
-- 目前版本里，`--agent-tool codex` 和 `--agent-tool claude-code` 都会按软件优先读取对应数据源。
+- 在 Codex 里运行时，当前 runtime 可以被识别，`token-receipt` 会读 Codex 日志。
+- 在 Claude Code 的 SessionEnd hook 里运行时，`token-receipt` 会读 Claude Code usage log。
+- 如果你是在普通 shell 里直接运行，而且本机同时有 Codex 和 Claude Code 两套日志，就必须显式传 `--agent-tool`；现在不再允许跨软件猜最新日志。
 - 目前版本里，`--agent-tool trae` 的态度是诚实的：它会明确告诉你先用手动模式，而不是假装 Trae 已经有稳定的 JSONL 会话日志可读。
 
 ---
@@ -222,6 +225,9 @@ footer 是最后那一刀。
 python3 scripts/token_receipt.py
 ```
 
+如果是在 Codex 或 Claude Code 里面跑，当前软件可以被自动识别。
+如果是在普通 shell 里跑，而且本机同时有多套软件日志，就要显式加 `--agent-tool`。
+
 常用的软件级调用示例：
 
 ```bash
@@ -236,6 +242,7 @@ python3 scripts/token_receipt.py --agent-tool trae --provider openai --model gpt
 
 ```bash
 python3 scripts/token_receipt.py --width 48 --stream
+python3 scripts/token_receipt.py --agent-tool codex --language en
 python3 scripts/token_receipt.py --agent-tool claude-code --language zh-CN
 python3 scripts/token_receipt.py --footer-tone snarky --conversation-summary "one more revision for visual polish"
 python3 scripts/token_receipt.py --provider anthropic --agent-tool claude-code --model claude-sonnet-4.5 --input-tokens 12487 --cached-input-tokens 8742 --output-tokens 3215
@@ -244,13 +251,15 @@ python3 scripts/token_receipt.py --provider anthropic --agent-tool claude-code -
 这些参数翻译成人话：
 
 - `--agent-tool codex`
-  读 Codex 的数据，不读 Claude 的。
+  读 Codex 的数据，并使用 Codex 的票头。
 - `--agent-tool claude-code`
-  读 Claude Code 的数据，不读 Codex 的。
+  读 Claude Code 的数据，并使用 Claude Code 的票头。
 - `--agent-tool trae`
   用 Trae 的票头。当前请自带 token 数字。
 - `--show-fields`
   先问日志：你到底能证明哪些字段是真的。
+- `--language en`
+  打印英文版小票。
 - `--language zh-CN`
   打印中文版小票，但不另起一套排版逻辑。
 - `--stream`

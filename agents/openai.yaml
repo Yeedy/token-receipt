@@ -2,7 +2,7 @@ interface:
   display_name: "Token Receipt"
   short_description: "把 token 用量打印成 ASCII 小票"
   brand_color: "#111111"
-  default_prompt: "Use $token-receipt when the user asks for a token receipt, token bill, usage receipt, cost receipt, token 小票, 对话发票, AI 用量账单, or asks to print this conversation's token/context usage as a shareable artifact. In chat, return receipt-only: one fenced code block containing the full receipt and no prefatory or trailing explanation. Use terminal printing only when the user explicitly asks for terminal output."
+  default_prompt: "Use $token-receipt when the user asks for a token receipt, token bill, usage receipt, cost receipt, token 小票, 对话发票, AI 用量账单, or asks to print this conversation's token/context usage as a shareable artifact. In chat, return receipt-only: one fenced code block containing the full receipt and no prefatory or trailing explanation. If the user asks for 中文版小票 or English receipt, switch the receipt language accordingly. Use the current software's own conversation data source; do not guess across another software's logs. Use terminal printing only when the user explicitly asks for terminal output."
 
 policy:
   allow_implicit_invocation: true

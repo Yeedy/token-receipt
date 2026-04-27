@@ -65,15 +65,23 @@ python3 scripts/uninstall_claude_auto_trigger.py
 
 ## 数据口径
 
-1. 默认读取 `~/.codex/sessions` 和 `~/.codex/archived_sessions` 中最新的 Codex JSONL 会话。
-2. 默认使用最新 `token_count` 事件里的 `last_token_usage`，即“最新一轮小票”。
-3. 如果用户要求累计账单，使用 `--scope session` 读取 `total_token_usage`。
-4. 供应商优先读 `session_meta.payload.model_provider`；模型名先读 `session_meta.payload.model*`，若没有再回退读 `turn_context.model`；都没有时再要求调用者传 `--model`，否则小票显示 `MODEL: UNRECORDED`。
-5. 价格只按 `references/pricing.json` 的官方价格表估算。匹配不到模型时显示 `PRICE: UNMAPPED`，不要自己编金额。
-6. 价格表按模型条目保留币种；美元模型显示 `USD ESTIMATE`，人民币模型显示 `CNY ESTIMATE`。GLM 使用已标注的百炼 CNY 公开价格，MiMo 使用 OpenRouter 路由价格；不要把平台价伪装成厂商直连账单。
-7. 主标题使用 `THANK YOU FOR CODING WITH ...`，让它更像真实品牌小票；不要在票面再放 `DATA: SNAPSHOT`。
-8. 顶部 logo 按 Agent 工具决定：Codex 使用 Codex logo，Claude Code 使用 Claude Code logo，Trae 使用 Trae logo。感谢语按实际模型/供应商品牌决定：Claude 模型写 Claude，GPT 模型写 ChatGPT，GLM 写 GLM，MiniMax 写 MiniMax，不能把工具 logo 当成模型名。
-9. 运行 `--show-fields` 可以查看当前日志里真实可读的字段。更详细说明见 `references/available-fields.md`。
+1. 默认行为应该是“按当前软件取数”：
+   - 在 Codex 里运行，就读 Codex 会话。
+   - 在 Claude Code 的 hook 或会话里运行，就读 Claude Code usage log / transcript。
+   - 不允许因为别的软件日志更新得更晚，就跨软件偷读。
+2. 如果当前运行环境识别不出软件，而且本机同时存在多套日志，必须显式传 `--agent-tool codex` 或 `--agent-tool claude-code`；不要猜。
+3. 默认使用最新 `token_count` 事件里的 `last_token_usage`，即“最新一轮小票”。
+4. 如果用户要求累计账单，使用 `--scope session` 读取 `total_token_usage`。
+5. 供应商优先读 `session_meta.payload.model_provider`；模型名先读 `session_meta.payload.model*`，若没有再回退读 `turn_context.model`；都没有时再要求调用者传 `--model`，否则小票显示 `MODEL: UNRECORDED`。
+6. 价格只按 `references/pricing.json` 的官方价格表估算。匹配不到模型时显示 `PRICE: UNMAPPED`，不要自己编金额。
+7. 价格表按模型条目保留币种；美元模型显示 `USD ESTIMATE`，人民币模型显示 `CNY ESTIMATE`。GLM 使用已标注的百炼 CNY 公开价格，MiMo 使用 OpenRouter 路由价格；不要把平台价伪装成厂商直连账单。
+8. 主标题使用 `THANK YOU FOR CODING WITH ...`，让它更像真实品牌小票；不要在票面再放 `DATA: SNAPSHOT`。
+9. 顶部 logo 按软件决定：Codex 使用 Codex logo，Claude Code 使用 Claude Code logo，Trae 使用 Trae logo。感谢语按实际模型/供应商品牌决定：Claude 模型写 Claude，GPT 模型写 ChatGPT，GLM 写 GLM，MiniMax 写 MiniMax，不能把软件 logo 当成模型名。
+10. 用户切换语言时：
+   - 英文：`--language en`
+   - 中文：`--language zh-CN`
+   - 如果用户直接说“中文版小票 / English receipt”，调用时就要带对这个参数。
+11. 运行 `--show-fields` 可以查看当前日志里真实可读的字段。更详细说明见 `references/available-fields.md`。
 
 ## 架构
 
