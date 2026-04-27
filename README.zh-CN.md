@@ -126,7 +126,15 @@ PRICE DATE                            2026-04-25
 
 ## 怎么触发
 
-如果你想在聊天里直接把这轮用量打成小票，直接这样说：
+`token-receipt` 有三种触发方式。
+
+### 1. 在聊天里直接触发
+
+如果你是把这个 repo 当 skill 装进软件里，正常用法不是先去终端里手动试命令。
+
+正常用法是：就在你正在用的那个软件聊天框里，直接开口让它结账。
+
+这些说法都应该触发：
 
 - `token 小票`
 - `对话发票`
@@ -134,8 +142,44 @@ PRICE DATE                            2026-04-25
 - `把这次对话打成小票`
 - `看看这轮 token 消耗`
 - `查看本次对话 Token 消耗`
+- `token receipt`
+- `token bill`
+- `usage receipt`
 
-如果装了 Claude Code 的自动触发，`SessionEnd` 结束时也会自动出票。
+如果你想指定语言，也可以直接说：
+
+- `中文版 token 小票`
+- `token receipt in English`
+
+### 2. 让 Claude Code 自动触发
+
+Claude Code 支持 `SessionEnd` 自动出票。
+
+先安装 hook：
+
+```bash
+python3 scripts/install_claude_auto_trigger.py
+```
+
+装好以后，Claude Code 会话结束时就会自动出 receipt，不需要你再多说一句。
+
+### 3. 直接跑 CLI
+
+如果你不是通过 skill 触发，而是想手动直接跑脚本，就用：
+
+```bash
+python3 scripts/token_receipt.py --agent-tool codex
+python3 scripts/token_receipt.py --agent-tool claude-code
+python3 scripts/token_receipt.py --agent-tool claude-code --language zh-CN
+```
+
+触发方式一览：
+
+| 软件 | 聊天里手动触发 | 自动触发 |
+| --- | --- | --- |
+| Codex | 说 `token receipt` 或同义触发词 | 暂未提供 |
+| Claude Code | 说 `token receipt` 或同义触发词 | 安装后支持 `SessionEnd` |
+| Trae | 说 `token receipt` 或同义触发词 | 暂未提供 |
 
 ---
 

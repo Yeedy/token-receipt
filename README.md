@@ -126,7 +126,13 @@ Same emotional outcome.
 
 ## How to trigger it
 
-If you want the skill to fire inside chat, ask for the receipt directly.
+There are three ways to use `token-receipt`.
+
+### 1. Trigger it inside chat
+
+If you installed this repo as a skill, the normal path is not “open terminal and figure it out.”
+
+The normal path is: say what you want in the chat box of the software you are already using.
 
 Strong trigger phrases:
 
@@ -137,9 +143,43 @@ Strong trigger phrases:
 - `对话发票`
 - `AI 用量账单`
 - `把这次对话打成小票`
+- `看看这轮 token 消耗`
 - `查看本次对话 Token 消耗`
 
-Claude Code can also auto-print on `SessionEnd` after installation.
+You can also be explicit about language:
+
+- `token receipt in English`
+- `中文版 token 小票`
+
+### 2. Let Claude Code do it automatically
+
+Claude Code can auto-print a receipt on `SessionEnd`.
+
+Install the hook:
+
+```bash
+python3 scripts/install_claude_auto_trigger.py
+```
+
+After that, ending a Claude Code session will auto-fire the receipt without an extra chat message.
+
+### 3. Run the CLI directly
+
+If you are not invoking it through a skill system, run the script yourself:
+
+```bash
+python3 scripts/token_receipt.py --agent-tool codex
+python3 scripts/token_receipt.py --agent-tool claude-code
+python3 scripts/token_receipt.py --agent-tool claude-code --language zh-CN
+```
+
+Trigger matrix:
+
+| Software | Manual trigger in chat | Auto trigger |
+| --- | --- | --- |
+| Codex | Say `token receipt` or equivalent | Not shipped |
+| Claude Code | Say `token receipt` or equivalent | `SessionEnd` hook after install |
+| Trae | Say `token receipt` or equivalent | Not shipped |
 
 ---
 
