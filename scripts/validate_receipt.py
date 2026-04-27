@@ -10,13 +10,16 @@ import sys
 import tempfile
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from token_receipt.models import display_width, printable_receipt_char  # noqa: E402
+
 SCRIPT = ROOT / "scripts" / "token_receipt.py"
 HOOK_SCRIPT = ROOT / "scripts" / "claude_session_end_hook.py"
 INSTALLER = ROOT / "scripts" / "install_claude_auto_trigger.py"
 UNINSTALLER = ROOT / "scripts" / "uninstall_claude_auto_trigger.py"
-PIXEL_CHARS = {"█", "░", "▒", "▓", "▐", "▛", "▜", "▌", "▘", "▝", "¥"}
 
 
 def run_script(script: Path, *args: str, env: dict[str, str] | None = None, stdin_text: str | None = None) -> str:
@@ -41,14 +44,15 @@ def assert_receipt(text: str, width: int, must_contain: list[str]) -> None:
     lines = text.splitlines()
     assert lines, "empty receipt"
     for line in lines:
-        assert len(line) <= width, f"line too wide ({len(line)}>{width}): {line!r}"
+        assert display_width(line) <= width, f"line too wide ({display_width(line)}>{width}): {line!r}"
         for char in line:
-            assert ord(char) <= 127 or char in PIXEL_CHARS, f"unsupported non-ascii char in {line!r}"
+            assert printable_receipt_char(char), f"unsupported control char in {line!r}"
     for needle in must_contain:
         assert needle in text, f"missing {needle!r}"
     assert "||" in text, "barcode-like bars missing"
-    assert "ITEM" in text and "TOKENS" in text, "receipt columns missing"
-    assert "TOTAL" in text, "total line missing"
+    assert any(label in text for label in ("ITEM", "项目")), "receipt item column missing"
+    assert any(label in text for label in ("TOKENS", "TOKEN")), "receipt token column missing"
+    assert any(label in text for label in ("TOTAL", "总计")), "total line missing"
 
 
 def extract_footer(text: str) -> list[str]:
@@ -195,6 +199,24 @@ def main() -> int:
     )
     assert_receipt(claude, 48, ["████", "CLAUDE", "CODE", "Reasoning Tokens", "Cache Write Tokens", "USD ESTIMATE"])
     assert_logo_label_aligned(claude, "CLAUDE CODE")
+
+    claude_zh = run_case(
+        "--provider", "anthropic",
+        "--agent-tool", "claude-code",
+        "--model", "claude-sonnet-4.5",
+        "--input-tokens", "12487",
+        "--cached-input-tokens", "8742",
+        "--cache-write-tokens", "1024",
+        "--output-tokens", "3215",
+        "--reasoning-output-tokens", "128",
+        "--width", "48",
+        "--language", "zh-CN",
+        "--footer-tone", "snarky",
+        "--conversation-summary", "再改一版 logo 对齐",
+    )
+    assert_receipt(claude_zh, 48, ["CLAUDE CODE", "感谢使用 Claude", "小票号", "供应商", "总计", "USD 预估"])
+    assert_logo_label_aligned(claude_zh, "CLAUDE CODE")
+    assert any(word in claude_zh for word in ("账单", "费用", "代价", "预算")), "zh receipt footer should read like a Chinese receipt footer"
 
     trae = run_case(
         "--provider", "openai",

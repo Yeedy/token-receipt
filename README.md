@@ -192,6 +192,7 @@ Useful rendering variants:
 
 ```bash
 python3 scripts/token_receipt.py --width 48 --stream
+python3 scripts/token_receipt.py --agent-tool claude-code --language zh-CN
 python3 scripts/token_receipt.py --footer-tone snarky --conversation-summary "one more revision for visual polish"
 python3 scripts/token_receipt.py --provider anthropic --agent-tool claude-code --model claude-sonnet-4.5 --input-tokens 12487 --cached-input-tokens 8742 --output-tokens 3215
 ```
@@ -206,6 +207,8 @@ What those flags mean in plain English:
   Use Trae branding. For now, bring your own token counts.
 - `--show-fields`
   Ask the logs what they can actually prove.
+- `--language zh-CN`
+  Print the Chinese receipt without forking the layout.
 - `--stream`
   Print like a machine that knows you spent too much.
 

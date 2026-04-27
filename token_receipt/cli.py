@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from .data import available_fields_report, estimate_cost, resolve_snapshot
-from .models import ALLOWED_WIDTHS, DEFAULT_FOOTER, DEFAULT_PRICING
+from .models import ALLOWED_WIDTHS, DEFAULT_FOOTER, DEFAULT_PRICING, canonical_language
 from .render import auto_brand, print_receipt, render_receipt
 
 
@@ -20,6 +20,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--width", type=int, choices=ALLOWED_WIDTHS, default=48)
     parser.add_argument("--agent-tool", choices=("auto", "codex", "claude-code", "trae", "generic"), default=None, help="Software/logo source. When auto-discovering local data, an explicit software also prioritizes that software's session source.")
     parser.add_argument("--brand", choices=("auto", "codex", "claude-code", "trae", "generic"), default=None, help="Backward-compatible alias for --agent-tool.")
+    parser.add_argument("--language", "--lang", dest="language", choices=("en", "zh", "zh-CN"), default="en", help="Receipt language.")
     parser.add_argument("--pricing", type=Path, default=DEFAULT_PRICING)
     parser.add_argument("--footer", default=DEFAULT_FOOTER, help="Custom footer line, or 'auto' for model-aware footer.")
     parser.add_argument("--footer-tone", choices=("auto", "snarky", "encouraging", "dry"), default="auto")
@@ -59,7 +60,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     estimate = estimate_cost(snapshot, args.pricing)
     agent_tool = auto_brand(snapshot.provider, snapshot.source, args.agent_tool or args.brand or "auto")
     conversation_hint = args.conversation_summary or args.conversation_hint
-    receipt_text = render_receipt(snapshot, estimate, args.width, agent_tool, args.footer, args.footer_tone, conversation_hint)
+    receipt_text = render_receipt(snapshot, estimate, args.width, agent_tool, args.footer, args.footer_tone, conversation_hint, canonical_language(args.language))
     stream = sys.stdout.isatty() if args.stream is None else args.stream
     print_receipt(receipt_text, stream, args.stream_delay)
     return 0

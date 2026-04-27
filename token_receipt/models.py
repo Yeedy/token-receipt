@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 import re
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional, Tuple
@@ -13,6 +14,8 @@ ALLOWED_WIDTHS = (42, 48, 56, 64)
 SKILL_DIR = Path(__file__).resolve().parents[1]
 DEFAULT_PRICING = SKILL_DIR / "references" / "pricing.json"
 DEFAULT_FOOTER = "auto"
+DEFAULT_LANGUAGE = "en"
+SUPPORTED_LANGUAGES = ("en", "zh-CN")
 PIXEL_CHARS = {"█", "░", "▒", "▓", "▐", "▛", "▜", "▌", "▘", "▝", "¥"}
 COMMON_TOKEN_FIELDS = (
     "input_tokens",
@@ -64,12 +67,63 @@ def fmt_int(value: Optional[int]) -> str:
     return f"{int(value or 0):,}"
 
 
-def truncate(value: str, max_len: int) -> str:
-    if len(value) <= max_len:
+def canonical_language(value: Optional[str]) -> str:
+    normalized = (value or DEFAULT_LANGUAGE).strip().lower()
+    if normalized in ("zh", "zh-cn", "zh_cn", "cn"):
+        return "zh-CN"
+    return "en"
+
+
+def char_display_width(char: str) -> int:
+    if not char:
+        return 0
+    if unicodedata.combining(char):
+        return 0
+    if unicodedata.east_asian_width(char) in {"W", "F"}:
+        return 2
+    return 1
+
+
+def display_width(value: str) -> int:
+    return sum(char_display_width(char) for char in value)
+
+
+def truncate(value: str, max_len: int, suffix: str = "...") -> str:
+    if display_width(value) <= max_len:
         return value
-    if max_len <= 3:
-        return value[:max_len]
-    return value[: max_len - 3] + "..."
+    suffix_width = display_width(suffix)
+    if max_len <= suffix_width:
+        pieces: list[str] = []
+        width = 0
+        for char in value:
+            char_width = char_display_width(char)
+            if width + char_width > max_len:
+                break
+            pieces.append(char)
+            width += char_width
+        return "".join(pieces)
+    pieces = []
+    width = 0
+    target = max_len - suffix_width
+    for char in value:
+        char_width = char_display_width(char)
+        if width + char_width > target:
+            break
+        pieces.append(char)
+        width += char_width
+    return "".join(pieces) + suffix
+
+
+def center_text(value: str, width: int) -> str:
+    text = truncate(value, width)
+    remaining = max(width - display_width(text), 0)
+    left = remaining // 2
+    right = remaining - left
+    return (" " * left + text + " " * right).rstrip()
+
+
+def printable_receipt_char(char: str) -> bool:
+    return not unicodedata.category(char).startswith("C")
 
 
 def as_int(value: Any) -> int:

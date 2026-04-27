@@ -193,6 +193,7 @@ python3 scripts/token_receipt.py --agent-tool trae --provider openai --model gpt
 
 ```bash
 python3 scripts/token_receipt.py --width 48 --stream
+python3 scripts/token_receipt.py --agent-tool claude-code --language zh-CN
 python3 scripts/token_receipt.py --footer-tone snarky --conversation-summary "one more revision for visual polish"
 python3 scripts/token_receipt.py --provider anthropic --agent-tool claude-code --model claude-sonnet-4.5 --input-tokens 12487 --cached-input-tokens 8742 --output-tokens 3215
 ```
@@ -207,6 +208,8 @@ python3 scripts/token_receipt.py --provider anthropic --agent-tool claude-code -
   用 Trae 的票头。当前请自带 token 数字。
 - `--show-fields`
   先问日志：你到底能证明哪些字段是真的。
+- `--language zh-CN`
+  打印中文版小票，但不另起一套排版逻辑。
 - `--stream`
   让它像一台知道你花多了的小票机一样吐单。
 
