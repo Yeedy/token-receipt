@@ -20,11 +20,6 @@
   </p>
 </div>
 
-> Inspired by [chrishutchinson/claude-receipts](https://github.com/chrishutchinson/claude-receipts).  
-> Same receipt instinct. Different attitude. More software. Meaner footer.
-
----
-
 ## Why this exists
 
 Most token tools explain usage.
@@ -391,3 +386,8 @@ It checks things like:
 Every prompt leaves a tab.
 
 `token-receipt` just prints it before you can emotionally recover.
+
+---
+
+> Inspired by [chrishutchinson/claude-receipts](https://github.com/chrishutchinson/claude-receipts).  
+> Same receipt instinct. Different attitude. More software. Meaner footer.

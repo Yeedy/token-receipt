@@ -20,11 +20,6 @@
   </p>
 </div>
 
-> 灵感来自 [chrishutchinson/claude-receipts](https://github.com/chrishutchinson/claude-receipts)。  
-> 同样是 receipt 的直觉，不同的是语气更黑，软件更多，footer 更狠。
-
----
-
 ## 这项目为什么存在
 
 大多数 token 工具在“解释用量”。
@@ -393,3 +388,8 @@ python3 scripts/validate_receipt.py
 每一次提示词，都会留下账单。
 
 `token-receipt` 只是比你的心理防线更早把它打印出来。
+
+---
+
+> 灵感来自 [chrishutchinson/claude-receipts](https://github.com/chrishutchinson/claude-receipts)。  
+> 同样是 receipt 的直觉，不同的是语气更黑，软件更多，footer 更狠。
