@@ -49,9 +49,9 @@ Three rules run the whole project:
 **English**
 
 ```text
-                     ▐▛███▜▌
-                    ▝▜█████▛▘
-                      ▘▘ ▝▝
+                    ▐▛███▜▌
+                   ▝▜█████▛▘
+                     ▘▘ ▝▝
                   CLAUDE CODE
 
         THANK YOU FOR CODING WITH Claude
@@ -85,9 +85,9 @@ PRICE DATE                            2026-04-25
 **中文**
 
 ```text
-                     ▐▛███▜▌
-                    ▝▜█████▛▘
-                      ▘▘ ▝▝
+                    ▐▛███▜▌
+                   ▝▜█████▛▘
+                     ▘▘ ▝▝
                   CLAUDE CODE
 
                  感谢使用 Claude

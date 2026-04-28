@@ -159,12 +159,12 @@ def auto_brand(provider: str, source: str, explicit: str) -> str:
     return "generic"
 
 
-def add_centered_block(receipt: Receipt, lines: List[str]) -> None:
+def add_centered_block(receipt: Receipt, lines: List[str], offset: int = 0) -> None:
     nonempty = [line for line in lines if line.strip()]
     shared_indent = min((len(line) - len(line.lstrip(" ")) for line in nonempty), default=0)
     normalized = [line[shared_indent:] for line in lines]
     block_width = max(visual_display_width(line.rstrip(), receipt.language) for line in normalized)
-    left_pad = max(int(round((receipt.width - block_width) / 2)), 0)
+    left_pad = max(int(round((receipt.width - block_width) / 2)) + offset, 0)
     for line in normalized:
         receipt.add(" " * left_pad + line.rstrip())
 
@@ -211,6 +211,7 @@ def add_logo(receipt: Receipt, agent_tool: str, language: str) -> None:
                 "▝▜█████▛▘",
                 "  ▘▘ ▝▝",
             ],
+            offset=-1,
         )
         receipt.center("CLAUDE CODE")
         return
