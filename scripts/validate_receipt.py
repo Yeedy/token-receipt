@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from token_receipt.data import requested_agent_tool, runtime_agent_tool, runtime_claude_session_id  # noqa: E402
+from token_receipt.data import newest_claude_usage_file, requested_agent_tool, runtime_agent_tool, runtime_claude_session_id  # noqa: E402
 from token_receipt.models import printable_receipt_char, visual_display_width  # noqa: E402
 
 SCRIPT = ROOT / "scripts" / "token_receipt.py"
@@ -216,10 +216,51 @@ def make_claude_home_fixture() -> tuple[Path, str]:
     return home, session_id
 
 
+def make_claude_mtime_tiebreak_fixture() -> tuple[Path, Path]:
+    home = Path(tempfile.mkdtemp(prefix="token-receipt-claude-mtime-"))
+    usage_dir = home / ".claude" / "usage-data" / "session-meta"
+    usage_dir.mkdir(parents=True, exist_ok=True)
+
+    older = usage_dir / "z-older.json"
+    newer = usage_dir / "a-newer.json"
+
+    older.write_text(
+        json.dumps(
+            {
+                "session_id": "older-session",
+                "start_time": "2026-04-27T04:00:00Z",
+                "input_tokens": 100,
+                "output_tokens": 10,
+            },
+            ensure_ascii=True,
+        ),
+        encoding="utf-8",
+    )
+    newer.write_text(
+        json.dumps(
+            {
+                "session_id": "newer-session",
+                "start_time": "2026-04-27T05:00:00Z",
+                "input_tokens": 200,
+                "output_tokens": 20,
+            },
+            ensure_ascii=True,
+        ),
+        encoding="utf-8",
+    )
+
+    # Same integer second, different sub-second mtimes. The later semantic
+    # session should still win via start_time rather than file mtime noise.
+    os.utime(older, (1_777_262_400.900, 1_777_262_400.900))
+    os.utime(newer, (1_777_262_400.100, 1_777_262_400.100))
+    return home, newer
+
+
 def main() -> int:
     fixture = make_session_fixture()
     claude_usage, claude_transcript = make_claude_usage_fixture()
     claude_home, claude_session_id = make_claude_home_fixture()
+    claude_mtime_home, expected_newest_usage = make_claude_mtime_tiebreak_fixture()
 
     assert runtime_agent_tool({"CODEX_THREAD_ID": "thread"}) == "codex"
     assert runtime_agent_tool({"CLAUDECODE": "1"}) == "claude-code"
@@ -461,6 +502,16 @@ def main() -> int:
     claude_report = json.loads(claude_fields)
     assert claude_report["source"].endswith(f"/{claude_session_id}.json")
     assert claude_report["model"] == "claude-sonnet-4.5"
+
+    original_home = os.environ.get("HOME")
+    try:
+        os.environ["HOME"] = str(claude_mtime_home)
+        assert newest_claude_usage_file() == expected_newest_usage
+    finally:
+        if original_home is None:
+            os.environ.pop("HOME", None)
+        else:
+            os.environ["HOME"] = original_home
 
     hook_env = os.environ.copy()
     hook_env["TOKEN_RECEIPT_CLAUDE_USAGE_PATH"] = str(claude_usage)

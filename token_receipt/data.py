@@ -46,11 +46,29 @@ def iter_claude_usage_files() -> Iterable[Path]:
     yield from usage_dir.glob("*.json")
 
 
+def _claude_usage_sort_key(path: Path) -> tuple:
+    """Sort by mtime (1s granularity), then by start_time as tiebreaker.
+
+    Files written in the same batch-sync often differ by sub-millisecond
+    mtime but are semantically unordered.  Bucketing to whole seconds
+    lets the start_time field break ties correctly.
+    """
+    mtime = int(path.stat().st_mtime)
+    start_time = ""
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            data = json.load(handle)
+        start_time = str(data.get("start_time", ""))
+    except (json.JSONDecodeError, OSError):
+        pass
+    return (mtime, start_time)
+
+
 def newest_claude_usage_file() -> Optional[Path]:
     files = list(iter_claude_usage_files())
     if not files:
         return None
-    return max(files, key=lambda path: path.stat().st_mtime)
+    return max(files, key=_claude_usage_sort_key)
 
 
 def find_claude_usage_for_session(session_id: str) -> Optional[Path]:
