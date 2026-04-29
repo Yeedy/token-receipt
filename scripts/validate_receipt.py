@@ -67,6 +67,18 @@ def assert_receipt(text: str, width: int, must_contain: list[str], language: str
     assert any(set(line.strip()) == {"─"} for line in lines if line.strip()), "light separator missing"
 
 
+def assert_html_receipt(text: str, must_contain: list[str], language: str = "en") -> None:
+    assert text.startswith("<!DOCTYPE html>"), "html output should start with doctype"
+    assert "<html" in text and "</html>" in text, "html wrapper missing"
+    assert "@media print" in text, "print stylesheet missing"
+    assert "window.print()" in text, "print button missing"
+    assert f'lang="{language}"' in text, f"expected html lang={language!r}"
+    assert "receipt-row" in text, "receipt rows missing"
+    assert "receipt-barcode" in text, "barcode block missing"
+    for needle in must_contain:
+        assert needle in text, f"missing {needle!r}"
+
+
 def extract_footer(text: str) -> list[str]:
     lines = text.splitlines()
     rule_indexes = [index for index, line in enumerate(lines) if is_rule_line(line)]
@@ -407,6 +419,22 @@ def main() -> int:
     saved_receipt = write_target.read_text(encoding="utf-8")
     assert "CLAUDE CODE" in saved_receipt
     assert "THANK YOU FOR CODING WITH Claude" in saved_receipt
+
+    html_target = Path(tempfile.mkdtemp(prefix="token-receipt-html-")) / "receipt.html"
+    quiet_html = run_case(
+        "--provider", "anthropic",
+        "--agent-tool", "claude-code",
+        "--model", "claude-sonnet-4.5",
+        "--input-tokens", "12487",
+        "--output-tokens", "3215",
+        "--language", "zh-CN",
+        "--footer", "打印测试通过。",
+        "--output", "html",
+        "--write", str(html_target),
+    )
+    assert quiet_html == ""
+    saved_html = html_target.read_text(encoding="utf-8")
+    assert_html_receipt(saved_html, ["CLAUDE CODE", "感谢使用 Claude", "USD 预估", "打印测试通过。"], language="zh-CN")
 
     claude_env = os.environ.copy()
     claude_env["HOME"] = str(claude_home)

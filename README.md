@@ -298,6 +298,7 @@ Useful rendering variants:
 python3 scripts/token_receipt.py --width 48 --stream
 python3 scripts/token_receipt.py --agent-tool codex --language en
 python3 scripts/token_receipt.py --agent-tool claude-code --language zh-CN
+python3 scripts/token_receipt.py --agent-tool claude-code --output html --write ./receipt.html
 python3 scripts/token_receipt.py --agent-tool claude-code --session ~/.claude/usage-data/session-meta/${CLAUDE_SESSION_ID}.json --write /tmp/token-receipt.txt
 python3 scripts/token_receipt.py --footer-tone snarky --conversation-summary "one more revision for visual polish"
 python3 scripts/token_receipt.py --provider anthropic --agent-tool claude-code --model claude-sonnet-4.5 --input-tokens 12487 --cached-input-tokens 8742 --output-tokens 3215
@@ -319,10 +320,32 @@ What those flags mean in plain English:
   Print the English receipt.
 - `--language zh-CN`
   Print the Chinese receipt without forking the layout.
+- `--output html`
+  Export a browser-printable receipt page instead of the monospace text artifact.
 - `--write /tmp/token-receipt.txt`
   Save the receipt quietly instead of dumping it into Bash stdout. This is the cleaner path inside Claude Code chat.
 - `--stream`
   Print like a machine that knows you spent too much.
+
+---
+
+## Printable HTML
+
+The main artifact is still the monospace receipt inside chat.
+
+HTML is the secondary route: useful when you want browser print preview, real printer output, or a cleaner handoff to thermal-printer workflows.
+
+```bash
+python3 scripts/token_receipt.py --agent-tool claude-code --output html --write ./receipt.html
+```
+
+Open `receipt.html` in a browser, hit `Print receipt`, and let the browser talk to the printer.
+
+The current HTML path is tuned for the same three things people actually notice:
+
+- a gray preview stage with a white receipt body, so the receipt edges stay visible on screen
+- a pure white print result, so the browser preview does not lie about the final paper
+- software-aware logos in HTML too: Claude Code uses a dedicated vector mark, while Codex and Trae use embedded image assets
 
 ---
 
@@ -378,6 +401,23 @@ It checks things like:
 - barcode presence
 - pricing fallbacks
 - unsupported field leakage
+
+---
+
+## Changelog
+
+See [CHANGELOG.md](/Users/cecilialiu/Documents/Codex/token-receipt/CHANGELOG.md) for the running update log.
+
+---
+
+## Roadmap
+
+- `Shipped now`
+  Printable HTML export for browser print preview and physical receipt workflows.
+- `Next up`
+  Printer-first presets for common paper widths and cleaner print defaults.
+- `Also planned`
+  Trae automatic session import once its local storage shape is stable enough to trust.
 
 ---
 

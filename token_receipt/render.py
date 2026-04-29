@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import hashlib
 import math
 import re
 import time
-from typing import List
+from typing import List, Tuple
 
 from .models import (
     ALLOWED_WIDTHS,
@@ -74,6 +75,31 @@ LABELS = {
         "unmapped": "未映射",
     },
 }
+
+
+@dataclass(frozen=True)
+class ReceiptRow:
+    label: str
+    value: str
+
+
+@dataclass(frozen=True)
+class ReceiptView:
+    language: str
+    width: int
+    logo_lines: Tuple[str, ...]
+    logo_label: str
+    thanks_line: str
+    receipt_id_line: str
+    date_line: str
+    summary_rows: Tuple[ReceiptRow, ...]
+    item_header: ReceiptRow
+    token_rows: Tuple[ReceiptRow, ...]
+    total_row: ReceiptRow
+    pricing_rows: Tuple[ReceiptRow, ...]
+    footer_lines: Tuple[str, ...]
+    barcode_line: str
+    barcode_id_line: str
 
 
 class Receipt:
@@ -169,11 +195,10 @@ def add_centered_block(receipt: Receipt, lines: List[str], offset: int = 0) -> N
         receipt.add(" " * left_pad + line.rstrip())
 
 
-def add_logo(receipt: Receipt, agent_tool: str, language: str) -> None:
+def logo_block(agent_tool: str, language: str) -> tuple[Tuple[str, ...], str, int]:
     if agent_tool == "codex":
-        add_centered_block(
-            receipt,
-            [
+        return (
+            (
                 "      █████",
                 "    █    ██   ███",
                 "  ███ ██    ██   █",
@@ -184,14 +209,13 @@ def add_logo(receipt: Receipt, agent_tool: str, language: str) -> None:
                 "  █   ██    █  ███",
                 "   ███   ██    █",
                 "         █████",
-            ],
+            ),
+            "CODEX",
+            0,
         )
-        receipt.center("CODEX")
-        return
     if agent_tool == "trae":
-        add_centered_block(
-            receipt,
-            [
+        return (
+            (
                 "   ██████████████",
                 "███▒▒▒▒▒▒▒▒▒▒▒▒▒▒███",
                 "███▒▒██████████▒▒███",
@@ -199,23 +223,30 @@ def add_logo(receipt: Receipt, agent_tool: str, language: str) -> None:
                 "███▒▒██████████▒▒███",
                 "█████▒▒▒▒▒▒▒▒▒▒▒▒███",
                 "   █████████████",
-            ],
+            ),
+            "TRAE",
+            0,
         )
-        receipt.center("TRAE")
-        return
     if agent_tool == "claude-code":
-        add_centered_block(
-            receipt,
-            [
+        return (
+            (
                 " ▐▛███▜▌",
                 "▝▜█████▛▘",
                 "  ▘▘ ▝▝",
-            ],
-            offset=-1,
+            ),
+            "CLAUDE CODE",
+            -1,
         )
-        receipt.center("CLAUDE CODE")
+    return ((), labels_for(language)["generic_logo"], 0)
+
+
+def add_logo(receipt: Receipt, agent_tool: str, language: str) -> None:
+    lines, label, offset = logo_block(agent_tool, language)
+    if lines:
+        add_centered_block(receipt, list(lines), offset=offset)
+        receipt.center(label)
         return
-    receipt.center(labels_for(language)["generic_logo"])
+    receipt.center(label)
 
 
 def product_name(snapshot: UsageSnapshot) -> str:
@@ -773,6 +804,69 @@ def money(amount: float | None, currency: str = "USD") -> str:
     return f"{currency_symbol(currency)}{amount:.6f}"
 
 
+def build_receipt_view(
+    snapshot: UsageSnapshot,
+    estimate: PriceEstimate,
+    width: int,
+    agent_tool: str,
+    footer: str,
+    footer_tone: str,
+    conversation_hint: str,
+    language: str = DEFAULT_LANGUAGE,
+) -> ReceiptView:
+    language = canonical_language(language)
+    labels = labels_for(language)
+    provider = snapshot.provider.upper() if snapshot.provider else "UNKNOWN"
+    rid = receipt_id(snapshot, snapshot.provider)
+    footer_text = auto_footer(snapshot, estimate, footer_tone, width, language, conversation_hint) if footer == "auto" else footer
+
+    summary_rows = (
+        ReceiptRow(labels["provider"], provider),
+        ReceiptRow(labels["model"], snapshot.model),
+        ReceiptRow(labels["context"], context_used(snapshot)),
+    )
+    token_rows: list[ReceiptRow] = []
+    if source_has(snapshot, "input_tokens"):
+        token_rows.append(ReceiptRow(labels["input"], fmt_int(snapshot.input_tokens)))
+    if source_has(snapshot, "output_tokens"):
+        token_rows.append(ReceiptRow(labels["output"], fmt_int(snapshot.output_tokens)))
+    if source_has(snapshot, "cached_input_tokens"):
+        token_rows.append(ReceiptRow(labels["cached"], fmt_int(snapshot.cached_input_tokens)))
+    if source_has(snapshot, "reasoning_output_tokens"):
+        token_rows.append(ReceiptRow(labels["reasoning"], fmt_int(snapshot.reasoning_output_tokens)))
+    if source_has(snapshot, "cache_write_tokens"):
+        token_rows.append(ReceiptRow(labels["cache_write"], fmt_int(snapshot.cache_write_tokens)))
+
+    pricing_rows = [
+        ReceiptRow(labels["estimate"].format(currency=estimate.currency), money(estimate.amount, estimate.currency)),
+        ReceiptRow(labels["price"], labels["unmapped"] if estimate.status == "UNMAPPED" else estimate.model),
+    ]
+    if estimate.status != "UNMAPPED":
+        if estimate.source_checked_at:
+            pricing_rows.append(ReceiptRow(labels["price_date"], estimate.source_checked_at))
+        if estimate.rate_note:
+            pricing_rows.append(ReceiptRow(labels["rate_note"], estimate.rate_note))
+
+    logo_lines, logo_label, _ = logo_block(agent_tool, language)
+    return ReceiptView(
+        language=language,
+        width=width,
+        logo_lines=logo_lines,
+        logo_label=logo_label,
+        thanks_line=labels["thanks"].format(product=product_name(snapshot)),
+        receipt_id_line=labels["receipt_id"].format(rid=rid),
+        date_line=labels["date"].format(date=display_time(snapshot.timestamp)),
+        summary_rows=summary_rows,
+        item_header=ReceiptRow(labels["item"], labels["tokens"]),
+        token_rows=tuple(token_rows),
+        total_row=ReceiptRow(labels["total"], f"{fmt_int(snapshot.total_tokens)} {labels['token_unit']}"),
+        pricing_rows=tuple(pricing_rows),
+        footer_lines=tuple(footer_lines(footer_text, width, language)),
+        barcode_line=barcode(rid, width),
+        barcode_id_line=rid,
+    )
+
+
 def render_receipt(
     snapshot: UsageSnapshot,
     estimate: PriceEstimate,
@@ -783,53 +877,33 @@ def render_receipt(
     conversation_hint: str,
     language: str = DEFAULT_LANGUAGE,
 ) -> str:
-    language = canonical_language(language)
-    labels = labels_for(language)
-    provider = snapshot.provider.upper() if snapshot.provider else "UNKNOWN"
-    rid = receipt_id(snapshot, snapshot.provider)
-    footer_text = auto_footer(snapshot, estimate, footer_tone, width, language, conversation_hint) if footer == "auto" else footer
-    receipt = Receipt(width, language)
+    view = build_receipt_view(snapshot, estimate, width, agent_tool, footer, footer_tone, conversation_hint, language)
+    receipt = Receipt(width, view.language)
 
-    add_logo(receipt, agent_tool, language)
+    add_logo(receipt, agent_tool, view.language)
     receipt.blank()
-    receipt.center(labels["thanks"].format(product=product_name(snapshot)))
-    receipt.center(labels["receipt_id"].format(rid=rid))
-    receipt.center(labels["date"].format(date=display_time(snapshot.timestamp)))
+    receipt.center(view.thanks_line)
+    receipt.center(view.receipt_id_line)
+    receipt.center(view.date_line)
     receipt.strong_rule()
-    receipt.kv(labels["provider"], provider)
-    receipt.kv(labels["model"], snapshot.model)
-    receipt.kv(labels["context"], context_used(snapshot))
+    for row in view.summary_rows:
+        receipt.kv(row.label, row.value)
     receipt.light_rule()
-    receipt.kv(labels["item"], labels["tokens"])
+    receipt.kv(view.item_header.label, view.item_header.value)
     receipt.light_rule()
-    if source_has(snapshot, "input_tokens"):
-        receipt.kv(labels["input"], fmt_int(snapshot.input_tokens))
-    if source_has(snapshot, "output_tokens"):
-        receipt.kv(labels["output"], fmt_int(snapshot.output_tokens))
-    if source_has(snapshot, "cached_input_tokens"):
-        receipt.kv(labels["cached"], fmt_int(snapshot.cached_input_tokens))
-    if source_has(snapshot, "reasoning_output_tokens"):
-        receipt.kv(labels["reasoning"], fmt_int(snapshot.reasoning_output_tokens))
-    if source_has(snapshot, "cache_write_tokens"):
-        receipt.kv(labels["cache_write"], fmt_int(snapshot.cache_write_tokens))
+    for row in view.token_rows:
+        receipt.kv(row.label, row.value)
     receipt.strong_rule()
-    receipt.kv(labels["total"], f"{fmt_int(snapshot.total_tokens)} {labels['token_unit']}")
+    receipt.kv(view.total_row.label, view.total_row.value)
     receipt.light_rule()
-    receipt.kv(labels["estimate"].format(currency=estimate.currency), money(estimate.amount, estimate.currency))
-    if estimate.status == "UNMAPPED":
-        receipt.kv(labels["price"], labels["unmapped"])
-    else:
-        receipt.kv(labels["price"], estimate.model)
-        if estimate.source_checked_at:
-            receipt.kv(labels["price_date"], estimate.source_checked_at)
-        if estimate.rate_note:
-            receipt.kv(labels["rate_note"], estimate.rate_note)
+    for row in view.pricing_rows:
+        receipt.kv(row.label, row.value)
     receipt.strong_rule()
-    for line in footer_lines(footer_text, width, language):
+    for line in view.footer_lines:
         receipt.center(line)
     receipt.blank()
-    receipt.add(barcode(rid, width))
-    receipt.center(rid)
+    receipt.add(view.barcode_line)
+    receipt.center(view.barcode_id_line)
     return receipt.text()
 
 

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import List, Optional
 
 from .data import available_fields_report, estimate_cost, resolve_snapshot
+from .html_render import render_receipt_html
 from .models import ALLOWED_WIDTHS, DEFAULT_FOOTER, DEFAULT_PRICING, canonical_language
 from .render import auto_brand, print_receipt, render_receipt
 
@@ -37,6 +38,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--context-window", type=int)
     parser.add_argument("--receipt-seed")
     parser.add_argument("--show-fields", action="store_true", help="Print a JSON report of fields available from the selected source instead of a receipt.")
+    parser.add_argument("--output", choices=("text", "html"), default="text", help="Receipt output format. Use html for a printable browser page.")
     parser.add_argument("--write", type=Path, help="Write the rendered receipt to a file and suppress stdout. Useful when a host tool would otherwise echo the receipt multiple times.")
     parser.add_argument("--stream", action="store_true", default=None, help="Print receipt one line at a time, like a receipt printer.")
     parser.add_argument("--no-stream", dest="stream", action="store_false", help="Print receipt all at once even in an interactive terminal.")
@@ -66,10 +68,17 @@ def main(argv: Optional[List[str]] = None) -> int:
     estimate = estimate_cost(snapshot, args.pricing)
     agent_tool = auto_brand(snapshot.provider, snapshot.source, args.agent_tool or args.brand or "auto")
     conversation_hint = args.conversation_summary or args.conversation_hint
-    receipt_text = render_receipt(snapshot, estimate, args.width, agent_tool, args.footer, args.footer_tone, conversation_hint, canonical_language(args.language))
+    language = canonical_language(args.language)
+    if args.output == "html":
+        receipt_text = render_receipt_html(snapshot, estimate, args.width, agent_tool, args.footer, args.footer_tone, conversation_hint, language)
+    else:
+        receipt_text = render_receipt(snapshot, estimate, args.width, agent_tool, args.footer, args.footer_tone, conversation_hint, language)
     if args.write:
         args.write.parent.mkdir(parents=True, exist_ok=True)
         args.write.write_text(receipt_text + "\n", encoding="utf-8")
+        return 0
+    if args.output == "html":
+        print(receipt_text)
         return 0
     stream = sys.stdout.isatty() if args.stream is None else args.stream
     print_receipt(receipt_text, stream, args.stream_delay)

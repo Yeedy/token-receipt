@@ -298,6 +298,7 @@ python3 scripts/token_receipt.py --agent-tool trae --provider openai --model gpt
 python3 scripts/token_receipt.py --width 48 --stream
 python3 scripts/token_receipt.py --agent-tool codex --language en
 python3 scripts/token_receipt.py --agent-tool claude-code --language zh-CN
+python3 scripts/token_receipt.py --agent-tool claude-code --output html --write ./receipt.html
 python3 scripts/token_receipt.py --agent-tool claude-code --session ~/.claude/usage-data/session-meta/${CLAUDE_SESSION_ID}.json --write /tmp/token-receipt.txt
 python3 scripts/token_receipt.py --footer-tone snarky --conversation-summary "one more revision for visual polish"
 python3 scripts/token_receipt.py --provider anthropic --agent-tool claude-code --model claude-sonnet-4.5 --input-tokens 12487 --cached-input-tokens 8742 --output-tokens 3215
@@ -319,10 +320,32 @@ python3 scripts/token_receipt.py --provider anthropic --agent-tool claude-code -
   打印英文版小票。
 - `--language zh-CN`
   打印中文版小票，但不另起一套排版逻辑。
+- `--output html`
+  导出一张适合浏览器打印的 HTML 小票页面，而不是聊天里的 monospace 版本。
 - `--write /tmp/token-receipt.txt`
   把小票静默写进文件，不往 Bash stdout 里刷屏。这是 Claude Code 聊天里更干净的调用方式。
 - `--stream`
   让它像一台知道你花多了的小票机一样吐单。
+
+---
+
+## 可打印 HTML
+
+聊天里的 monospace 小票仍然是主输出。
+
+HTML 是第二出口：适合走浏览器打印预览、连真实打印机，或者接热敏纸工作流。
+
+```bash
+python3 scripts/token_receipt.py --agent-tool claude-code --output html --write ./receipt.html
+```
+
+把 `receipt.html` 用浏览器打开，点一下 `Print receipt`，剩下的交给浏览器和打印机。
+
+这一版的 HTML 主要盯住了三件最容易被看出来的事：
+
+- 屏幕上有一层淡灰背景板，小票本体保持白色，边界更清楚
+- 真正打印时仍然是纯白票面，不会把预览背景一起带上纸
+- HTML 里也按软件切 logo：Claude Code 用单独的矢量标，Codex 和 Trae 用嵌入式图片素材
 
 ---
 
@@ -380,6 +403,23 @@ python3 scripts/validate_receipt.py
 - 条形码还活着
 - 价格降级逻辑没坏
 - 没把不该打印的字段偷偷打上票面
+
+---
+
+## 更新日志
+
+持续更新记录见 [CHANGELOG.md](/Users/cecilialiu/Documents/Codex/token-receipt/CHANGELOG.md)。
+
+---
+
+## 更新计划
+
+- `现在已经有`
+  可打印 HTML 导出，方便走浏览器打印预览和实体小票机。
+- `接下来会做`
+  更适合常见纸宽的打印预设，以及更干净的打印默认样式。
+- `后面准备补`
+  Trae 的自动会话导入，前提是本地存储结构足够稳定，值得信。
 
 ---
 
