@@ -40,6 +40,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--show-fields", action="store_true", help="Print a JSON report of fields available from the selected source instead of a receipt.")
     parser.add_argument("--output", choices=("text", "html"), default="text", help="Receipt output format. Use html for a printable browser page.")
     parser.add_argument("--write", type=Path, help="Write the rendered receipt to a file and suppress stdout. Useful when a host tool would otherwise echo the receipt multiple times.")
+    parser.add_argument("--write-html", type=Path, help="Also write a printable HTML receipt to a file while keeping the main output unchanged.")
     parser.add_argument("--stream", action="store_true", default=None, help="Print receipt one line at a time, like a receipt printer.")
     parser.add_argument("--no-stream", dest="stream", action="store_false", help="Print receipt all at once even in an interactive terminal.")
     parser.add_argument("--stream-delay", type=float, default=0.03, help="Delay in seconds between lines when --stream is used.")
@@ -69,10 +70,16 @@ def main(argv: Optional[List[str]] = None) -> int:
     agent_tool = auto_brand(snapshot.provider, snapshot.source, args.agent_tool or args.brand or "auto")
     conversation_hint = args.conversation_summary or args.conversation_hint
     language = canonical_language(args.language)
+    html_receipt = None
+    if args.output == "html" or args.write_html:
+        html_receipt = render_receipt_html(snapshot, estimate, args.width, agent_tool, args.footer, args.footer_tone, conversation_hint, language)
     if args.output == "html":
-        receipt_text = render_receipt_html(snapshot, estimate, args.width, agent_tool, args.footer, args.footer_tone, conversation_hint, language)
+        receipt_text = html_receipt or render_receipt_html(snapshot, estimate, args.width, agent_tool, args.footer, args.footer_tone, conversation_hint, language)
     else:
         receipt_text = render_receipt(snapshot, estimate, args.width, agent_tool, args.footer, args.footer_tone, conversation_hint, language)
+    if args.write_html:
+        args.write_html.parent.mkdir(parents=True, exist_ok=True)
+        args.write_html.write_text((html_receipt or "") + "\n", encoding="utf-8")
     if args.write:
         args.write.parent.mkdir(parents=True, exist_ok=True)
         args.write.write_text(receipt_text + "\n", encoding="utf-8")

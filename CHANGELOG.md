@@ -6,6 +6,7 @@
 
 - Printable HTML export via `--output html`
 - Quiet file output via `--write`
+- Dual export support via `--write-html`, so text receipts can also drop a printable HTML file in the same run
 - Embedded HTML logo assets for Codex and Trae
 - Dedicated SVG logo path for Claude Code in HTML
 - HTML smoke coverage in `scripts/validate_receipt.py`

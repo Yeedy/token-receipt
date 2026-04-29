@@ -41,8 +41,6 @@ Three rules run the whole project:
 
 ## Preview
 
-**English**
-
 ```text
                     ▐▛███▜▌
                    ▝▜█████▛▘
@@ -76,46 +74,6 @@ PRICE DATE                            2026-04-25
         ||| ||||| || ||| | | || |||  | |
            CC_20260427_151928_7CE382
 ```
-
-**中文**
-
-```text
-                    ▐▛███▜▌
-                   ▝▜█████▛▘
-                     ▘▘ ▝▝
-                  CLAUDE CODE
-
-                 感谢使用 Claude
-        小票号: CC_20260427_155533_9A83E3
-            日期: 2026-04-27 15:55:33
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-供应商                                  ANTHROPIC
-模型                            claude-sonnet-4.5
-已用上下文                                  12,487
-────────────────────────────────────────────────
-项目                                        TOKEN
-────────────────────────────────────────────────
-输入 Tokens                                12,487
-输出 Tokens                                 3,215
-缓存读取                                     8,742
-推理 Tokens                                   128
-缓存写入                                     1,024
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-总计                                15,702 Tokens
-────────────────────────────────────────────────
-USD 预估                                $0.062851
-价格映射                         claude-sonnet-4.5
-价格日期                                2026-04-25
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                画面稳了，预算死了。
-
-         ||| |||||  ||||||| |||||||||  |
-            CC_20260427_155533_9A83E3
-```
-
-Same receipt.
-Different language.
-Same emotional outcome.
 
 ---
 
@@ -324,6 +282,8 @@ What those flags mean in plain English:
   Export a browser-printable receipt page instead of the monospace text artifact.
 - `--write /tmp/token-receipt.txt`
   Save the receipt quietly instead of dumping it into Bash stdout. This is the cleaner path inside Claude Code chat.
+- `--write-html /tmp/token-receipt.html`
+  Keep the text receipt as the main artifact, but also save a printable HTML copy that can be linked back in hosts that support local file links.
 - `--stream`
   Print like a machine that knows you spent too much.
 
@@ -340,6 +300,14 @@ python3 scripts/token_receipt.py --agent-tool claude-code --output html --write 
 ```
 
 Open `receipt.html` in a browser, hit `Print receipt`, and let the browser talk to the printer.
+
+If your host can render local file links, the cleaner flow is dual export:
+
+```bash
+python3 scripts/token_receipt.py --agent-tool claude-code --write /tmp/token-receipt.txt --write-html /tmp/token-receipt.html
+```
+
+That keeps the monospace receipt in chat while also giving you a clickable printable HTML file.
 
 The current HTML path is tuned for the same three things people actually notice:
 

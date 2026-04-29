@@ -436,6 +436,20 @@ def main() -> int:
     saved_html = html_target.read_text(encoding="utf-8")
     assert_html_receipt(saved_html, ["CLAUDE CODE", "感谢使用 Claude", "USD 预估", "打印测试通过。"], language="zh-CN")
 
+    dual_html_target = Path(tempfile.mkdtemp(prefix="token-receipt-dual-html-")) / "receipt.html"
+    dual_export = run_case(
+        "--provider", "anthropic",
+        "--agent-tool", "claude-code",
+        "--model", "claude-sonnet-4.5",
+        "--input-tokens", "12487",
+        "--output-tokens", "3215",
+        "--write-html", str(dual_html_target),
+    )
+    assert "CLAUDE CODE" in dual_export
+    assert dual_export.startswith(" ")
+    dual_saved_html = dual_html_target.read_text(encoding="utf-8")
+    assert_html_receipt(dual_saved_html, ["CLAUDE CODE", "THANK YOU FOR CODING WITH Claude", "USD ESTIMATE"], language="en")
+
     claude_env = os.environ.copy()
     claude_env["HOME"] = str(claude_home)
     claude_env["CLAUDECODE"] = "1"

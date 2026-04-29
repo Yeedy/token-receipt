@@ -41,8 +41,6 @@
 
 ## 预览
 
-**中文**
-
 ```text
                     ▐▛███▜▌
                    ▝▜█████▛▘
@@ -76,46 +74,6 @@ USD 预估                                $0.062851
          ||| |||||  ||||||| |||||||||  |
             CC_20260427_155533_9A83E3
 ```
-
-**English**
-
-```text
-                    ▐▛███▜▌
-                   ▝▜█████▛▘
-                     ▘▘ ▝▝
-                  CLAUDE CODE
-
-        THANK YOU FOR CODING WITH Claude
-      RECEIPT #: CC_20260427_151928_7CE382
-           DATE: 2026-04-27 15:19:28
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-PROVIDER                               ANTHROPIC
-MODEL                          claude-sonnet-4.5
-CONTEXT USED                              12,487
-────────────────────────────────────────────────
-ITEM                                      TOKENS
-────────────────────────────────────────────────
-Input Tokens                              12,487
-Output Tokens                              3,215
-Cache Read Tokens                          8,742
-Reasoning Tokens                             128
-Cache Write Tokens                         1,024
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-TOTAL                              15,702 TOKENS
-────────────────────────────────────────────────
-USD ESTIMATE                           $0.062851
-PRICE                          claude-sonnet-4.5
-PRICE DATE                            2026-04-25
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-    THE LOGO LOOKS CALM. THE BILL DOES NOT.
-
-        ||| ||||| || ||| | | || |||  | |
-           CC_20260427_151928_7CE382
-```
-
-同一张票。
-换一门语言。
-同一种疼法。
 
 ---
 
@@ -324,6 +282,8 @@ python3 scripts/token_receipt.py --provider anthropic --agent-tool claude-code -
   导出一张适合浏览器打印的 HTML 小票页面，而不是聊天里的 monospace 版本。
 - `--write /tmp/token-receipt.txt`
   把小票静默写进文件，不往 Bash stdout 里刷屏。这是 Claude Code 聊天里更干净的调用方式。
+- `--write-html /tmp/token-receipt.html`
+  保持文本小票还是主输出，但额外落一份可打印 HTML，方便在支持本地文件链接的宿主里一起回给用户。
 - `--stream`
   让它像一台知道你花多了的小票机一样吐单。
 
@@ -340,6 +300,14 @@ python3 scripts/token_receipt.py --agent-tool claude-code --output html --write 
 ```
 
 把 `receipt.html` 用浏览器打开，点一下 `Print receipt`，剩下的交给浏览器和打印机。
+
+如果宿主支持本地文件链接，更顺手的做法是双导出：
+
+```bash
+python3 scripts/token_receipt.py --agent-tool claude-code --write /tmp/token-receipt.txt --write-html /tmp/token-receipt.html
+```
+
+这样聊天里保留 monospace 小票，同时还能顺手附上一份可点击的打印版 HTML。
 
 这一版的 HTML 主要盯住了三件最容易被看出来的事：
 
