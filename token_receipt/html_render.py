@@ -92,7 +92,7 @@ def render_receipt_html(
     title = escape(view.barcode_id_line)
     logo_art = _logo_markup(agent_tool, view.logo_lines)
 
-    footer_html = "\n".join(f'        <div class="receipt-footer-line">{escape(line)}</div>' for line in view.footer_lines)
+    footer_text = " ".join(line.strip() for line in view.footer_lines if line.strip())
     return f"""<!DOCTYPE html>
 <html lang="{escape(page_lang)}">
   <head>
@@ -112,12 +112,12 @@ def render_receipt_html(
         --pad-bottom: 4.8mm;
         --logo-width: 24mm;
         --logo-shell-height: 26mm;
-        --logo-label-size: 5.1mm;
-        --meta-size: 3.9mm;
-        --row-size: 4.05mm;
-        --footer-size: 4.15mm;
-        --barcode-size: 3.7mm;
-        --barcode-id-size: 3.7mm;
+        --logo-label-size: 4.3mm;
+        --meta-size: 3.2mm;
+        --row-size: 3.45mm;
+        --footer-size: 3.55mm;
+        --barcode-size: 3.15mm;
+        --barcode-id-size: 3.15mm;
       }}
       * {{
         box-sizing: border-box;
@@ -180,7 +180,7 @@ def render_receipt_html(
         margin: 0;
         white-space: pre;
         line-height: 1.02;
-        font-size: 5mm;
+        font-size: 4.25mm;
       }}
       .receipt-logo-image {{
         display: block;
@@ -194,6 +194,10 @@ def render_receipt_html(
         height: auto;
         color: var(--ink);
       }}
+      .receipt-logo-svg--claude-code {{
+        width: calc(var(--logo-width) - 0.8mm);
+        transform: translateX(-0.45mm);
+      }}
       .receipt-logo-image--codex,
       .receipt-logo-image--trae {{
         width: var(--logo-width);
@@ -206,16 +210,16 @@ def render_receipt_html(
       }}
       .receipt-thanks,
       .receipt-meta {{
-        margin-top: 3.2mm;
+        margin-top: 2.7mm;
         font-size: var(--meta-size);
         line-height: 1.35;
       }}
       .receipt-meta {{
-        margin-top: 1.1mm;
+        margin-top: 0.9mm;
       }}
       .receipt-rule {{
         border-top: 0.35mm solid var(--rule);
-        margin: 4.2mm 0;
+        margin: 3.5mm 0;
       }}
       .receipt-rule.strong {{
         border-top-width: 0.55mm;
@@ -237,17 +241,21 @@ def render_receipt_html(
         white-space: nowrap;
       }}
       .receipt-total {{
-        font-size: calc(var(--row-size) + 0.3mm);
+        font-size: calc(var(--row-size) + 0.15mm);
       }}
       .receipt-footer {{
-        margin-top: 4mm;
+        margin-top: 3.2mm;
+        padding: 0 0.6mm;
       }}
       .receipt-footer-line {{
         font-size: var(--footer-size);
         line-height: 1.35;
+        white-space: normal;
+        overflow-wrap: break-word;
+        text-wrap: balance;
       }}
       .receipt-barcode {{
-        margin: 4.4mm 0 1.8mm;
+        margin: 3.6mm 0 1.4mm;
         white-space: pre;
         font-size: var(--barcode-size);
         line-height: 1;
@@ -312,7 +320,7 @@ def render_receipt_html(
 {_render_rows(view.pricing_rows)}
         <footer class="receipt-footer">
           <div class="receipt-rule strong"></div>
-{footer_html}
+          <div class="receipt-footer-line">{escape(footer_text)}</div>
           <pre class="receipt-barcode" aria-hidden="true">{escape(view.barcode_line.strip())}</pre>
           <div class="receipt-barcode-id">{escape(view.barcode_id_line)}</div>
         </footer>
