@@ -13,6 +13,7 @@
     <code>Codex</code>
     <code>Trae</code>
     <code>Kimi Code</code>
+    <code>OpenCode</code>
   </p>
   <p>
     不是仪表盘。不是表格。不是自我安慰。
@@ -125,6 +126,8 @@ python3 scripts/install_claude_auto_trigger.py
 python3 scripts/token_receipt.py --agent-tool codex
 python3 scripts/token_receipt.py --agent-tool claude-code
 python3 scripts/token_receipt.py --agent-tool kimi-code
+python3 scripts/token_receipt.py --agent-tool opencode
+python3 scripts/token_receipt.py --session ~/.local/share/opencode/opencode.db --opencode-session-id ses_xxx --agent-tool opencode
 python3 scripts/token_receipt.py --agent-tool claude-code --language zh-CN
 ```
 
@@ -136,6 +139,7 @@ python3 scripts/token_receipt.py --agent-tool claude-code --language zh-CN
 | Claude Code | 说 `token receipt` 或同义触发词 | 安装后支持 `SessionEnd` |
 | Trae | 说 `token receipt` 或同义触发词 | 暂未提供 |
 | Kimi Code | 说 `token receipt` 或同义触发词；CLI 可用 `--agent-tool kimi-code` | 暂未提供（读本地 `context.jsonl`） |
+| OpenCode | 同上；CLI `--agent-tool opencode` 或指定 `opencode*.db` | 暂未提供（读本地 SQLite） |
 
 ---
 
@@ -169,6 +173,7 @@ footer 是最后那一刀。
 | Claude Code | `现在就支持` | Claude usage-data + projects | 用 usage log 取 token，用 transcript 辅助识别模型 |
 | Trae | `当前先支持手动出票` | Trae 应用存储 | 自动导入暂未发版 |
 | Kimi Code | `现在就支持` | kimi-cli `context.jsonl`（`~/.kimi/sessions/` 或 `KIMI_SHARE_DIR`） | 读 `_usage.token_count` 上下文累计；不做美元分项估算；要精确计价请用手动 `--input-tokens` / `--output-tokens` |
+| OpenCode | `现在就支持` | `~/.local/share/opencode/opencode*.db`（可用 `OPENCODE_DATA_DIR`、`XDG_DATA_HOME`） | 读 SQLite 中 `message.data` 的 `tokens` / `modelID`；支持 `--scope latest-turn` / `session` |
 
 补充说明：
 

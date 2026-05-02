@@ -13,6 +13,7 @@
     <code>Codex</code>
     <code>Trae</code>
     <code>Kimi Code</code>
+    <code>OpenCode</code>
   </p>
   <p>
     No dashboard. No spreadsheet. No spiritual coping mechanism.
@@ -125,8 +126,11 @@ If you are not invoking it through a skill system, run the script yourself:
 python3 scripts/token_receipt.py --agent-tool codex
 python3 scripts/token_receipt.py --agent-tool claude-code
 python3 scripts/token_receipt.py --agent-tool kimi-code
+python3 scripts/token_receipt.py --agent-tool opencode
 python3 scripts/token_receipt.py --agent-tool claude-code --language zh-CN
+python3 scripts/token_receipt.py --session ~/.local/share/opencode/opencode.db --opencode-session-id ses_xxx --agent-tool opencode
 ```
+
 
 Trigger matrix:
 
@@ -136,6 +140,7 @@ Trigger matrix:
 | Claude Code | Say `token receipt` or equivalent | `SessionEnd` hook after install |
 | Trae | Say `token receipt` or equivalent | Not shipped |
 | Kimi Code | Say `token receipt` or equivalent; CLI `--agent-tool kimi-code` | Not shipped |
+| OpenCode | Say `token receipt` or equivalent; CLI `--agent-tool opencode` | Not shipped |
 
 ---
 
@@ -169,6 +174,7 @@ It does not quietly switch to another app's newer logs.
 | Claude Code | `supported now` | Claude usage-data + projects | Uses usage logs for tokens and transcripts for model lookup |
 | Trae | `manual mode now` | Trae app storage | Auto transcript import is not shipped yet |
 | Kimi Code | `supported now` | kimi-cli `context.jsonl` (`~/.kimi/sessions/` or `KIMI_SHARE_DIR`) | Reads cumulative `_usage.token_count`; USD estimate omitted (no API split); use manual flags if you need priced input/output |
+| OpenCode | `supported now` | `opencode*.db` SQLite under `~/.local/share/opencode/` (see `OPENCODE_DATA_DIR`, `XDG_DATA_HOME`) | Reads `session`/`message` rows (`message.data` JSON: `tokens`, `modelID`); supports `--scope latest-turn` \| `session` |
 
 Notes:
 

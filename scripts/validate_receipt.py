@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -15,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from token_receipt.data import newest_claude_usage_file, requested_agent_tool, runtime_agent_tool, runtime_claude_session_id  # noqa: E402
+from token_receipt.data import newest_claude_usage_file, requested_agent_tool, runtime_agent_tool, runtime_claude_session_id, runtime_opencode_session_id  # noqa: E402
 from token_receipt.models import printable_receipt_char, visual_display_width  # noqa: E402
 
 SCRIPT = ROOT / "scripts" / "token_receipt.py"
@@ -279,6 +280,56 @@ def make_kimi_kimi_home_fixture() -> tuple[Path, Path]:
     return home, ctx
 
 
+def make_opencode_sqlite_fixture() -> tuple[Path, str]:
+    """Minimal OpenCode-style SQLite (session + message), compatible with CodeBurn schema."""
+    tmpdir = Path(tempfile.mkdtemp(prefix="token-receipt-opencode-"))
+    db = tmpdir / "opencode_fixture.db"
+    sid = "ses_fixture_opencode_xx"
+    conn = sqlite3.connect(str(db))
+    conn.execute(
+        "CREATE TABLE session (id TEXT PRIMARY KEY, directory TEXT, title TEXT, "
+        "time_created INTEGER, time_archived INTEGER, parent_id TEXT)"
+    )
+    conn.execute("CREATE TABLE message (id TEXT PRIMARY KEY, session_id TEXT, time_created INTEGER, data TEXT)")
+    conn.execute(
+        "INSERT INTO session VALUES (?,?,?,?,?,?)",
+        (sid, "/tmp/opencode_demo", "demo", 1_730_000_000, None, None),
+    )
+    base_msg = {
+        "role": "assistant",
+        "modelID": "anthropic/claude-sonnet-4-5",
+        "tokens": {
+            "input": 990,
+            "output": 50,
+            "reasoning": 10,
+            "cache": {"read": 12, "write": 8},
+        },
+    }
+    conn.execute(
+        "INSERT INTO message VALUES (?,?,?,?)",
+        ("msg_a1", sid, 1_730_000_001, json.dumps(base_msg, ensure_ascii=True)),
+    )
+    conn.execute(
+        "INSERT INTO message VALUES (?,?,?,?)",
+        (
+            "msg_a2",
+            sid,
+            1_730_000_002,
+            json.dumps(
+                {
+                    "role": "assistant",
+                    "modelID": "anthropic/claude-sonnet-4-5",
+                    "tokens": {"input": 100, "output": 20, "reasoning": 0, "cache": {"read": 0, "write": 0}},
+                },
+                ensure_ascii=True,
+            ),
+        ),
+    )
+    conn.commit()
+    conn.close()
+    return db, sid
+
+
 def main() -> int:
     fixture = make_session_fixture()
     claude_usage, claude_transcript = make_claude_usage_fixture()
@@ -288,7 +339,8 @@ def main() -> int:
     assert runtime_agent_tool({"CODEX_THREAD_ID": "thread"}) == "codex"
     assert runtime_agent_tool({"CLAUDECODE": "1"}) == "claude-code"
     assert runtime_agent_tool({"KIMI_SESSION_ID": "sess-1"}) == "kimi-code"
-    assert runtime_claude_session_id({"CLAUDE_SESSION_ID": "abc"}) == "abc"
+    assert runtime_opencode_session_id({"OPENCODE_SESSION_ID": " ses_x "}) == "ses_x"
+    assert runtime_agent_tool({"OPENCODE_SESSION_ID": "ses-z"}) == "opencode"
     assert requested_agent_tool(SimpleNamespace(agent_tool=None, brand=None), {"CODEX_INTERNAL_ORIGINATOR_OVERRIDE": "Codex Desktop"}) == "codex"
     assert requested_agent_tool(SimpleNamespace(agent_tool=None, brand="generic"), {"CODEX_INTERNAL_ORIGINATOR_OVERRIDE": "Codex Desktop"}) == "codex"
     assert requested_agent_tool(SimpleNamespace(agent_tool="claude-code", brand=None), {"CODEX_THREAD_ID": "thread"}) == "claude-code"
@@ -368,6 +420,39 @@ def main() -> int:
 
     kimi_direct = run_case("--session", str(kimi_ctx_path), "--agent-tool", "kimi-code", "--width", "48")
     assert "8,150" in kimi_direct and "KIMI CODE" in kimi_direct
+
+    opc_db, opc_sid = make_opencode_sqlite_fixture()
+    opc_latest = run_case(
+        "--session",
+        str(opc_db),
+        "--opencode-session-id",
+        opc_sid,
+        "--agent-tool",
+        "opencode",
+        "--scope",
+        "latest-turn",
+        "--width",
+        "48",
+    )
+    assert_receipt(opc_latest, 48, ["OPENCODE", "THANK YOU FOR CODING WITH Claude", "Input Tokens", "USD ESTIMATE", "$"])
+    assert_logo_label_aligned(opc_latest, "OPENCODE")
+
+    opc_session = run_case(
+        "--session",
+        str(opc_db),
+        "--opencode-session-id",
+        opc_sid,
+        "--agent-tool",
+        "opencode",
+        "--scope",
+        "session",
+        "--width",
+        "48",
+    )
+    assert "OPENCODE" in opc_session and "USD ESTIMATE" in opc_session
+    assert "Reasoning Tokens" in opc_session
+    assert "1,090" in opc_session
+    assert "1,190" in opc_session
 
     qwen = run_case(
         "--provider", "alibaba",

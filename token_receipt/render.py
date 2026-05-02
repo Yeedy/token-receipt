@@ -186,6 +186,8 @@ def auto_brand(provider: str, source: str, explicit: str) -> str:
     provider_key = normalize(provider)
     source_key = normalize(source)
     src_slash = source.replace("\\", "/").lower()
+    if "#ses_" in source or source.startswith("opencode://"):
+        return "opencode"
     if "/.kimi/sessions/" in src_slash or "/.kimi/imported_sessions/" in src_slash:
         return "kimi-code"
     if provider_key == "trae" or "trae" in source_key:
@@ -260,6 +262,18 @@ def logo_block(agent_tool: str, language: str) -> tuple[Tuple[str, ...], str, in
                 "        ▀▀▀▀▀▀▀",
             ),
             "KIMI CODE",
+            0,
+        )
+    if agent_tool == "opencode":
+        return (
+            (
+                "       ███████████████",
+                "       █       █    ██",
+                "       █ ████ ██ ████",
+                "       █       █    ██",
+                "       ███████████████",
+            ),
+            "OPENCODE",
             0,
         )
     return ((), labels_for(language)["generic_logo"], 0)
