@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import json
 import os
+import re
 from pathlib import Path
-from typing import Any, Dict, Iterable, Mapping, Optional
+from typing import Any, Dict, Iterable, Mapping, Optional, Tuple
 
 from .models import (
     COMMON_TOKEN_FIELDS,
@@ -160,11 +162,182 @@ def maybe_model_from_turn_context(payload: Dict[str, Any]) -> Optional[str]:
 
 
 def model_from_env() -> Optional[str]:
-    for key in ("CODEX_MODEL", "OPENAI_MODEL", "ANTHROPIC_MODEL", "MODEL"):
+    for key in ("CODEX_MODEL", "OPENAI_MODEL", "ANTHROPIC_MODEL", "KIMI_MODEL", "MOONSHOT_MODEL", "MODEL"):
         value = os.environ.get(key)
         if value:
             return value.strip()
     return None
+
+
+def kimi_share_dir(home: Optional[Path] = None) -> Path:
+    explicit = (os.environ.get("KIMI_SHARE_DIR") or "").strip()
+    if explicit:
+        return Path(os.path.expandvars(os.path.expanduser(explicit)))
+    return (home or Path.home()) / ".kimi"
+
+
+def iter_kimi_context_files() -> Iterable[Path]:
+    base = kimi_share_dir()
+    sessions = base / "sessions"
+    if sessions.is_dir():
+        for work_hash in sessions.iterdir():
+            if not work_hash.is_dir():
+                continue
+            for sess_dir in work_hash.iterdir():
+                # 跳过 subagents/（子 Agent 会话单独存 context）
+                if not sess_dir.is_dir() or sess_dir.name == "subagents":
+                    continue
+                cand = sess_dir / "context.jsonl"
+                if cand.is_file():
+                    yield cand
+    imported = base / "imported_sessions"
+    if imported.is_dir():
+        for sess_dir in imported.iterdir():
+            if not sess_dir.is_dir():
+                continue
+            cand = sess_dir / "context.jsonl"
+            if cand.is_file():
+                yield cand
+
+
+def newest_kimi_context_file() -> Optional[Path]:
+    files = [p for p in iter_kimi_context_files() if p.is_file()]
+    if not files:
+        return None
+    return max(files, key=lambda path: path.stat().st_mtime)
+
+
+def find_kimi_context_for_session(session_id: str) -> Optional[Path]:
+    if not session_id.strip():
+        return None
+    base = kimi_share_dir()
+    candidates: list[Path] = []
+    for sub in ("sessions", "imported_sessions"):
+        root = base / sub
+        if not root.is_dir():
+            continue
+        if sub == "sessions":
+            candidates.extend(root.rglob(f"{session_id}/context.jsonl"))
+        else:
+            exact = root / session_id / "context.jsonl"
+            if exact.is_file():
+                candidates.append(exact)
+    if not candidates:
+        return None
+    return max(candidates, key=lambda path: path.stat().st_mtime)
+
+
+def kimi_config_default_model() -> Optional[str]:
+    path = kimi_share_dir() / "config.toml"
+    if not path.is_file():
+        return None
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    for raw in text.splitlines():
+        line = raw.split("#", 1)[0].strip()
+        if not line.lower().startswith("default_model"):
+            continue
+        if "=" not in line:
+            continue
+        value = line.split("=", 1)[1].strip()
+        mm = re.match(r'^"(.*)"$', value)
+        if mm:
+            return mm.group(1).strip() or None
+        mm = re.match(r"^'(.*)'$", value)
+        if mm:
+            return mm.group(1).strip() or None
+        return value.strip() or None
+    return None
+
+
+def scan_kimi_context_token_tally(path: Path) -> Optional[int]:
+    last: Optional[int] = None
+    try:
+        with path.open("r", encoding="utf-8", errors="replace") as handle:
+            for line in handle:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if not isinstance(obj, dict) or obj.get("role") != "_usage":
+                    continue
+                tc = obj.get("token_count")
+                if isinstance(tc, int) and tc >= 0:
+                    last = tc
+    except OSError:
+        return None
+    return last
+
+
+def load_snapshot_from_kimi_context(
+    path: Path,
+    model_override: Optional[str],
+    provider_override: Optional[str],
+) -> UsageSnapshot:
+    tally = scan_kimi_context_token_tally(path)
+    if tally is None:
+        raise SystemExit(
+            f"No valid Kimi `_usage` records (role `_usage` + integer `token_count`) found in {path}. "
+            "If this file is not from Kimi Code CLI, pick a different --session."
+        )
+
+    session_id = path.parent.name
+    model = model_override or model_from_env() or kimi_config_default_model() or "UNRECORDED"
+    provider = provider_override or infer_provider_from_model(model)
+
+    stamp = dt.datetime.fromtimestamp(path.stat().st_mtime, tz=dt.timezone.utc).isoformat()
+
+    return UsageSnapshot(
+        input_tokens=0,
+        cached_input_tokens=0,
+        cache_write_tokens=0,
+        output_tokens=0,
+        reasoning_output_tokens=0,
+        total_tokens=tally,
+        context_tokens=tally,
+        context_window=None,
+        provider=str(provider),
+        model=str(model),
+        source=str(path),
+        session_id=session_id,
+        timestamp=stamp,
+        scope="session",
+        available_fields=("total_tokens",),
+        skip_price_estimate=True,
+    )
+
+
+def is_kimi_context_file(path: Path) -> bool:
+    if path.name != "context.jsonl" or not path.is_file():
+        return False
+    try:
+        with path.open("r", encoding="utf-8", errors="replace") as handle:
+            for _ in range(400):
+                line = handle.readline()
+                if not line:
+                    break
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if not isinstance(obj, dict):
+                    continue
+                role = obj.get("role")
+                if role == "_system_prompt":
+                    return True
+                if role == "_usage" and isinstance(obj.get("token_count"), int):
+                    return True
+    except OSError:
+        return False
+    return False
 
 
 def load_snapshot_from_claude_usage(
@@ -354,6 +527,9 @@ def runtime_agent_tool(env: Optional[Mapping[str, str]] = None) -> Optional[str]
         return "codex"
     if any(runtime.get(key) for key in ("TRAE_RUNTIME", "TRAE_IDE", "TRAE_SESSION_ID")):
         return "trae"
+    # Kimi Code CLI / 宿主可注入，便于在非交互环境里自动选型
+    if runtime.get("KIMI_SESSION_ID", "").strip() or runtime.get("KIMI_CODE", "").strip():
+        return "kimi-code"
     return None
 
 
@@ -372,7 +548,7 @@ def requested_agent_tool(args: argparse.Namespace, env: Optional[Mapping[str, st
         return explicit
 
     brand = getattr(args, "brand", None)
-    if brand in ("codex", "claude-code", "trae"):
+    if brand in ("codex", "claude-code", "trae", "kimi-code"):
         return brand
 
     return runtime_agent_tool(env)
@@ -385,6 +561,8 @@ def resolve_snapshot(args: argparse.Namespace) -> UsageSnapshot:
     if args.session:
         if is_claude_usage_file(args.session):
             return load_snapshot_from_claude_usage(args.session, args.model, args.provider)
+        if is_kimi_context_file(args.session):
+            return load_snapshot_from_kimi_context(args.session, args.model, args.provider)
         return load_snapshot_from_session(args.session, args.scope, args.model, args.provider)
 
     agent_tool = requested_agent_tool(args)
@@ -412,33 +590,54 @@ def resolve_snapshot(args: argparse.Namespace) -> UsageSnapshot:
             "If you are on Windows, the equivalent home-relative paths are %USERPROFILE%\\.codex\\sessions and %USERPROFILE%\\.codex\\archived_sessions."
         )
 
+    if agent_tool == "kimi-code":
+        kimi_path = None
+        sid = os.environ.get("KIMI_SESSION_ID", "").strip()
+        if sid:
+            kimi_path = find_kimi_context_for_session(sid)
+        if kimi_path is None:
+            kimi_path = newest_kimi_context_file()
+        if kimi_path:
+            return load_snapshot_from_kimi_context(kimi_path, args.model, args.provider)
+        share = kimi_share_dir()
+        raise SystemExit(
+            f"No Kimi Code context.jsonl found under {share / 'sessions'} or {share / 'imported_sessions'}. "
+            "Try --session <path/to/context.jsonl>, export with `kimi export`, or pass manual --input-tokens/--output-tokens."
+        )
+
     if agent_tool == "trae":
         raise SystemExit(trae_manual_mode_error())
 
     codex_path = newest_session_file()
     claude_path = newest_claude_usage_file()
+    kimi_path = newest_kimi_context_file()
 
     sources = []
     if codex_path:
         sources.append(("codex", codex_path))
     if claude_path:
         sources.append(("claude-code", claude_path))
+    if kimi_path:
+        sources.append(("kimi-code", kimi_path))
 
     if len(sources) == 1:
         source_type, path = sources[0]
         if source_type == "codex":
             return load_snapshot_from_session(path, args.scope, args.model, args.provider)
+        if source_type == "kimi-code":
+            return load_snapshot_from_kimi_context(path, args.model, args.provider)
         return load_snapshot_from_claude_usage(path, args.model, args.provider)
 
     if len(sources) > 1:
         raise SystemExit(
             "Multiple software logs are available locally. "
-            "Pass --agent-tool codex or --agent-tool claude-code, or run token-receipt inside the software whose conversation you want to bill. "
+            "Pass --agent-tool codex, --agent-tool claude-code, --agent-tool kimi-code, "
+            "or run token-receipt inside the software whose conversation you want to bill. "
             "token-receipt does not guess across software."
         )
 
     raise SystemExit(
-        "No Codex or Claude Code session file found for the current software. "
+        "No Codex, Claude Code, or Kimi Code session logs found locally. "
         "For Trae, automatic import is not implemented yet; provide --input-tokens and --output-tokens for manual mode."
     )
 
@@ -468,6 +667,10 @@ def find_price(pricing: Dict[str, Any], provider: str, model: str) -> Optional[D
 
 
 def estimate_cost(snapshot: UsageSnapshot, pricing_path: Path) -> PriceEstimate:
+    # Kimi context.jsonl 只有上下文累计 token_count，不能直接套 API 分项单价
+    if snapshot.skip_price_estimate:
+        return PriceEstimate(status="UNMAPPED", amount=None)
+
     pricing = load_pricing(pricing_path)
     entry = find_price(pricing, snapshot.provider, snapshot.model)
     if not entry:
@@ -505,7 +708,7 @@ def available_fields_report(snapshot: UsageSnapshot) -> Dict[str, Any]:
     rendered = [field for field in RECEIPT_TOKEN_FIELDS if field in snapshot.available_fields]
     unavailable_common = [field for field in COMMON_TOKEN_FIELDS if field not in snapshot.available_fields]
     available_optional = [field for field in OPTIONAL_TOKEN_FIELDS if field in snapshot.available_fields]
-    return {
+    report: Dict[str, Any] = {
         "source": snapshot.source,
         "scope": snapshot.scope,
         "provider": snapshot.provider,
@@ -533,3 +736,9 @@ def available_fields_report(snapshot: UsageSnapshot) -> Dict[str, Any]:
             "system_tokens",
         ],
     }
+    if snapshot.skip_price_estimate:
+        report["usd_estimate_note"] = "skipped: kimi context.jsonl only stores cumulative context token tallies"
+        report["kimi_context_roles_expected"] = ["_system_prompt", "_usage", "_checkpoint", "assistant/user messages"]
+    if snapshot.context_tokens is not None:
+        report["context_snapshot_tokens_last_usage"] = snapshot.context_tokens
+    return report

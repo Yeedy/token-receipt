@@ -12,6 +12,7 @@
     <code>Claude Code</code>
     <code>Codex</code>
     <code>Trae</code>
+    <code>Kimi Code</code>
   </p>
   <p>
     不是仪表盘。不是表格。不是自我安慰。
@@ -123,6 +124,7 @@ python3 scripts/install_claude_auto_trigger.py
 ```bash
 python3 scripts/token_receipt.py --agent-tool codex
 python3 scripts/token_receipt.py --agent-tool claude-code
+python3 scripts/token_receipt.py --agent-tool kimi-code
 python3 scripts/token_receipt.py --agent-tool claude-code --language zh-CN
 ```
 
@@ -133,6 +135,7 @@ python3 scripts/token_receipt.py --agent-tool claude-code --language zh-CN
 | Codex | 说 `token receipt` 或同义触发词 | 暂未提供 |
 | Claude Code | 说 `token receipt` 或同义触发词 | 安装后支持 `SessionEnd` |
 | Trae | 说 `token receipt` 或同义触发词 | 暂未提供 |
+| Kimi Code | 说 `token receipt` 或同义触发词；CLI 可用 `--agent-tool kimi-code` | 暂未提供（读本地 `context.jsonl`） |
 
 ---
 
@@ -165,13 +168,14 @@ footer 是最后那一刀。
 | Codex | `现在就支持` | Codex JSONL 会话 | 直接读本地会话日志 |
 | Claude Code | `现在就支持` | Claude usage-data + projects | 用 usage log 取 token，用 transcript 辅助识别模型 |
 | Trae | `当前先支持手动出票` | Trae 应用存储 | 自动导入暂未发版 |
+| Kimi Code | `现在就支持` | kimi-cli `context.jsonl`（`~/.kimi/sessions/` 或 `KIMI_SHARE_DIR`） | 读 `_usage.token_count` 上下文累计；不做美元分项估算；要精确计价请用手动 `--input-tokens` / `--output-tokens` |
 
 补充说明：
 
 - 部分 Trae 构建会使用 `Trae CN` / `.trae-cn` 命名。
 - 在 Codex 里运行时，当前 runtime 可以被识别，`token-receipt` 会读 Codex 日志。
 - 在 Claude Code 的 SessionEnd hook 里运行时，`token-receipt` 会读 Claude Code usage log。
-- 如果你是在普通 shell 里直接运行，而且本机同时有 Codex 和 Claude Code 两套日志，就必须显式传 `--agent-tool`；现在不再允许跨软件猜最新日志。
+- 如果你是在普通 shell 里直接运行，而且本机同时有多套软件日志，就要显式加 `--agent-tool`；现在不再允许跨软件猜最新日志。
 - 目前版本里，`--agent-tool trae` 的态度是诚实的：它会明确告诉你先用手动模式，而不是假装 Trae 已经有稳定的 JSONL 会话日志可读。
 
 ---

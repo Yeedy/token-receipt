@@ -42,6 +42,8 @@ class UsageSnapshot:
     output_tokens: int = 0
     reasoning_output_tokens: int = 0
     total_tokens: int = 0
+    # Kimi Code：context.jsonl 里 `_usage.token_count` 是上下文占用累计，≠ API 分项账单
+    context_tokens: Optional[int] = None
     context_window: Optional[int] = None
     provider: str = "unknown"
     model: str = "UNRECORDED"
@@ -50,6 +52,8 @@ class UsageSnapshot:
     timestamp: Optional[str] = None
     scope: str = "latest-turn"
     available_fields: Tuple[str, ...] = ()
+    # 为 True 时不做单价估算（避免把上下文累计误当成 prompt/completion）
+    skip_price_estimate: bool = False
 
 
 @dataclass

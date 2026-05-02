@@ -25,6 +25,10 @@ UNINSTALLER = ROOT / "scripts" / "uninstall_claude_auto_trigger.py"
 
 
 def run_script(script: Path, *args: str, env: dict[str, str] | None = None, stdin_text: str | None = None) -> str:
+    child_env = {**os.environ}
+    child_env.setdefault("PYTHONIOENCODING", "utf-8")
+    if env:
+        child_env.update(env)
     result = subprocess.run(
         [sys.executable, str(script), *args],
         cwd=str(ROOT),
@@ -32,7 +36,9 @@ def run_script(script: Path, *args: str, env: dict[str, str] | None = None, stdi
         input=stdin_text,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        env=env,
+        env=child_env,
+        encoding="utf-8",
+        errors="replace",
         check=True,
     )
     return result.stdout.rstrip("\n")
@@ -256,6 +262,23 @@ def make_claude_mtime_tiebreak_fixture() -> tuple[Path, Path]:
     return home, newer
 
 
+def make_kimi_kimi_home_fixture() -> tuple[Path, Path]:
+    """Minimal ~/.kimi tree: sessions/<hash>/<id>/context.jsonl + config.toml."""
+    home = Path(tempfile.mkdtemp(prefix="token-receipt-kimi-home-"))
+    share = home / ".kimi"
+    sess_root = share / "sessions" / "a1deadbeefcafefeedb8a1deadbeefcaf" / "kimi-session-xyz"
+    sess_root.mkdir(parents=True)
+    ctx = sess_root / "context.jsonl"
+    lines = [
+        json.dumps({"role": "_system_prompt", "content": "fixture system prompt"}, ensure_ascii=True),
+        json.dumps({"role": "_usage", "token_count": 1000}, ensure_ascii=True),
+        json.dumps({"role": "_usage", "token_count": 8150}, ensure_ascii=True),
+    ]
+    ctx.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    (share / "config.toml").write_text('default_model = "kimi-k2"\n', encoding="utf-8")
+    return home, ctx
+
+
 def main() -> int:
     fixture = make_session_fixture()
     claude_usage, claude_transcript = make_claude_usage_fixture()
@@ -264,6 +287,7 @@ def main() -> int:
 
     assert runtime_agent_tool({"CODEX_THREAD_ID": "thread"}) == "codex"
     assert runtime_agent_tool({"CLAUDECODE": "1"}) == "claude-code"
+    assert runtime_agent_tool({"KIMI_SESSION_ID": "sess-1"}) == "kimi-code"
     assert runtime_claude_session_id({"CLAUDE_SESSION_ID": "abc"}) == "abc"
     assert requested_agent_tool(SimpleNamespace(agent_tool=None, brand=None), {"CODEX_INTERNAL_ORIGINATOR_OVERRIDE": "Codex Desktop"}) == "codex"
     assert requested_agent_tool(SimpleNamespace(agent_tool=None, brand="generic"), {"CODEX_INTERNAL_ORIGINATOR_OVERRIDE": "Codex Desktop"}) == "codex"
@@ -328,6 +352,22 @@ def main() -> int:
     )
     assert_receipt(trae, 48, ["TRAE", "THANK YOU FOR CODING WITH ChatGPT", "USD ESTIMATE"])
     assert_logo_label_aligned(trae, "TRAE")
+
+    kimi_home, kimi_ctx_path = make_kimi_kimi_home_fixture()
+    kimi_by_session = run_case(
+        "--agent-tool",
+        "kimi-code",
+        "--width",
+        "48",
+        env={**os.environ, "HOME": str(kimi_home), "USERPROFILE": str(kimi_home), "KIMI_SESSION_ID": "kimi-session-xyz"},
+    )
+    assert_receipt(kimi_by_session, 48, ["KIMI CODE", "THANK YOU FOR CODING WITH Kimi", "CONTEXT USED", "8,150"])
+    assert "Input Tokens" not in kimi_by_session
+    assert "UNMAPPED" in kimi_by_session
+    assert_logo_label_aligned(kimi_by_session, "KIMI CODE")
+
+    kimi_direct = run_case("--session", str(kimi_ctx_path), "--agent-tool", "kimi-code", "--width", "48")
+    assert "8,150" in kimi_direct and "KIMI CODE" in kimi_direct
 
     qwen = run_case(
         "--provider", "alibaba",
@@ -500,7 +540,8 @@ def main() -> int:
         env=claude_env,
     )
     claude_report = json.loads(claude_fields)
-    assert claude_report["source"].endswith(f"/{claude_session_id}.json")
+    norm_source = claude_report["source"].replace("\\", "/")
+    assert norm_source.endswith(f"/{claude_session_id}.json")
     assert claude_report["model"] == "claude-sonnet-4.5"
 
     original_home = os.environ.get("HOME")
