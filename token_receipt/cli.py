@@ -19,8 +19,13 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--session", type=Path, help="Codex JSONL session path. Defaults to newest local session.")
     parser.add_argument("--scope", choices=("latest-turn", "session"), default="latest-turn")
     parser.add_argument("--width", type=int, choices=ALLOWED_WIDTHS, default=48)
-    parser.add_argument("--agent-tool", choices=("auto", "codex", "claude-code", "trae", "generic"), default=None, help="Software data source and receipt logo. When omitted, token-receipt uses the current runtime if it can detect one; otherwise it will ask you to disambiguate instead of guessing across software.")
-    parser.add_argument("--brand", choices=("auto", "codex", "claude-code", "trae", "generic"), default=None, help="Backward-compatible logo override. Prefer --agent-tool when choosing a software data source.")
+    parser.add_argument("--agent-tool", choices=("auto", "codex", "claude-code", "trae", "kimi-code", "opencode", "generic"), default=None, help="Software data source and receipt logo. When omitted, token-receipt uses the current runtime if it can detect one; otherwise it will ask you to disambiguate instead of guessing across software.")
+    parser.add_argument("--brand", choices=("auto", "codex", "claude-code", "trae", "kimi-code", "opencode", "generic"), default=None, help="Backward-compatible logo override. Prefer --agent-tool when choosing a software data source.")
+    parser.add_argument(
+        "--opencode-session-id",
+        default=None,
+        help="OpenCode session id (ses_…) when reading an opencode*.db SQLite file via --session, or together with --agent-tool opencode.",
+    )
     parser.add_argument("--language", "--lang", dest="language", choices=("en", "zh", "zh-CN"), default="en", help="Receipt language: en or zh-CN.")
     parser.add_argument("--pricing", type=Path, default=DEFAULT_PRICING)
     parser.add_argument("--footer", default=DEFAULT_FOOTER, help="Custom footer line, or 'auto' for model-aware footer.")

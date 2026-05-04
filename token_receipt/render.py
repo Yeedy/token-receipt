@@ -159,7 +159,16 @@ def receipt_id(snapshot: UsageSnapshot, provider: str) -> str:
         date_part = time.strftime("%Y%m%d_%H%M%S")
     seed = f"{snapshot.session_id}:{snapshot.provider}:{snapshot.model}:{snapshot.total_tokens}:{snapshot.source}:{date_part}"
     digest = hashlib.sha1(seed.encode("utf-8")).hexdigest()[:6].upper()
-    prefix = "CC" if normalize(provider) == "anthropic" else "CX" if normalize(provider) == "openai" else "AI"
+    nk = normalize(provider)
+    prefix = (
+        "CC"
+        if nk == "anthropic"
+        else "CX"
+        if nk == "openai"
+        else "KM"
+        if nk == "moonshot"
+        else "AI"
+    )
     return f"{prefix}_{date_part}_{digest}"
 
 
@@ -176,6 +185,11 @@ def auto_brand(provider: str, source: str, explicit: str) -> str:
         return explicit
     provider_key = normalize(provider)
     source_key = normalize(source)
+    src_slash = source.replace("\\", "/").lower()
+    if "#ses_" in source or source.startswith("opencode://"):
+        return "opencode"
+    if "/.kimi/sessions/" in src_slash or "/.kimi/imported_sessions/" in src_slash:
+        return "kimi-code"
     if provider_key == "trae" or "trae" in source_key:
         return "trae"
     if provider_key == "openai" or "codex" in source_key:
@@ -237,6 +251,31 @@ def logo_block(agent_tool: str, language: str) -> tuple[Tuple[str, ...], str, in
             "CLAUDE CODE",
             -1,
         )
+    if agent_tool == "kimi-code":
+        return (
+            (
+                "       █▀▀▀▀▀▀▀█",
+                "       █ ██▀ ██ █",
+                "       █ ▀▀█▀▀ ██",
+                "       █ █ ▄ █ ██",
+                "       █ ██▄██ █▀",
+                "        ▀▀▀▀▀▀▀",
+            ),
+            "KIMI CODE",
+            0,
+        )
+    if agent_tool == "opencode":
+        return (
+            (
+                "       ███████████████",
+                "       █       █    ██",
+                "       █ ████ ██ ████",
+                "       █       █    ██",
+                "       ███████████████",
+            ),
+            "OPENCODE",
+            0,
+        )
     return ((), labels_for(language)["generic_logo"], 0)
 
 
@@ -284,7 +323,11 @@ def product_name(snapshot: UsageSnapshot) -> str:
 
 
 def context_used(snapshot: UsageSnapshot) -> str:
-    used = fmt_int(snapshot.input_tokens)
+    if snapshot.context_tokens is not None:
+        used_src = snapshot.context_tokens
+    else:
+        used_src = snapshot.input_tokens
+    used = fmt_int(used_src)
     if snapshot.context_window:
         return f"{used}/{fmt_int(snapshot.context_window)}"
     return used

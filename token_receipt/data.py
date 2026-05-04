@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import json
 import os
+import re
+import sqlite3
 from pathlib import Path
 from typing import Any, Dict, Iterable, Mapping, Optional
 
@@ -160,10 +163,515 @@ def maybe_model_from_turn_context(payload: Dict[str, Any]) -> Optional[str]:
 
 
 def model_from_env() -> Optional[str]:
-    for key in ("CODEX_MODEL", "OPENAI_MODEL", "ANTHROPIC_MODEL", "MODEL"):
+    for key in ("CODEX_MODEL", "OPENAI_MODEL", "ANTHROPIC_MODEL", "KIMI_MODEL", "MOONSHOT_MODEL", "MODEL"):
         value = os.environ.get(key)
         if value:
             return value.strip()
+    return None
+
+
+def kimi_share_dir(home: Optional[Path] = None) -> Path:
+    explicit = (os.environ.get("KIMI_SHARE_DIR") or "").strip()
+    if explicit:
+        return Path(os.path.expandvars(os.path.expanduser(explicit)))
+    return (home or Path.home()) / ".kimi"
+
+
+def iter_kimi_context_files() -> Iterable[Path]:
+    base = kimi_share_dir()
+    sessions = base / "sessions"
+    if sessions.is_dir():
+        for work_hash in sessions.iterdir():
+            if not work_hash.is_dir():
+                continue
+            for sess_dir in work_hash.iterdir():
+                # 跳过 subagents/（子 Agent 会话单独存 context）
+                if not sess_dir.is_dir() or sess_dir.name == "subagents":
+                    continue
+                cand = sess_dir / "context.jsonl"
+                if cand.is_file():
+                    yield cand
+    imported = base / "imported_sessions"
+    if imported.is_dir():
+        for sess_dir in imported.iterdir():
+            if not sess_dir.is_dir():
+                continue
+            cand = sess_dir / "context.jsonl"
+            if cand.is_file():
+                yield cand
+
+
+def newest_kimi_context_file() -> Optional[Path]:
+    files = [p for p in iter_kimi_context_files() if p.is_file()]
+    if not files:
+        return None
+    return max(files, key=lambda path: path.stat().st_mtime)
+
+
+def find_kimi_context_for_session(session_id: str) -> Optional[Path]:
+    if not session_id.strip():
+        return None
+    base = kimi_share_dir()
+    candidates: list[Path] = []
+    for sub in ("sessions", "imported_sessions"):
+        root = base / sub
+        if not root.is_dir():
+            continue
+        if sub == "sessions":
+            candidates.extend(root.rglob(f"{session_id}/context.jsonl"))
+        else:
+            exact = root / session_id / "context.jsonl"
+            if exact.is_file():
+                candidates.append(exact)
+    if not candidates:
+        return None
+    return max(candidates, key=lambda path: path.stat().st_mtime)
+
+
+def kimi_config_default_model() -> Optional[str]:
+    path = kimi_share_dir() / "config.toml"
+    if not path.is_file():
+        return None
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    for raw in text.splitlines():
+        line = raw.split("#", 1)[0].strip()
+        if not line.lower().startswith("default_model"):
+            continue
+        if "=" not in line:
+            continue
+        value = line.split("=", 1)[1].strip()
+        mm = re.match(r'^"(.*)"$', value)
+        if mm:
+            return mm.group(1).strip() or None
+        mm = re.match(r"^'(.*)'$", value)
+        if mm:
+            return mm.group(1).strip() or None
+        return value.strip() or None
+    return None
+
+
+def scan_kimi_context_token_tally(path: Path) -> Optional[int]:
+    last: Optional[int] = None
+    try:
+        with path.open("r", encoding="utf-8", errors="replace") as handle:
+            for line in handle:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if not isinstance(obj, dict) or obj.get("role") != "_usage":
+                    continue
+                tc = obj.get("token_count")
+                if isinstance(tc, int) and tc >= 0:
+                    last = tc
+    except OSError:
+        return None
+    return last
+
+
+def load_snapshot_from_kimi_context(
+    path: Path,
+    model_override: Optional[str],
+    provider_override: Optional[str],
+) -> UsageSnapshot:
+    tally = scan_kimi_context_token_tally(path)
+    if tally is None:
+        raise SystemExit(
+            f"No valid Kimi `_usage` records (role `_usage` + integer `token_count`) found in {path}. "
+            "If this file is not from Kimi Code CLI, pick a different --session."
+        )
+
+    session_id = path.parent.name
+    model = model_override or model_from_env() or kimi_config_default_model() or "UNRECORDED"
+    provider = provider_override or infer_provider_from_model(model)
+
+    stamp = dt.datetime.fromtimestamp(path.stat().st_mtime, tz=dt.timezone.utc).isoformat()
+
+    return UsageSnapshot(
+        input_tokens=0,
+        cached_input_tokens=0,
+        cache_write_tokens=0,
+        output_tokens=0,
+        reasoning_output_tokens=0,
+        total_tokens=tally,
+        context_tokens=tally,
+        context_window=None,
+        provider=str(provider),
+        model=str(model),
+        source=str(path),
+        session_id=session_id,
+        timestamp=stamp,
+        scope="session",
+        available_fields=("total_tokens",),
+        skip_price_estimate=True,
+    )
+
+
+def is_kimi_context_file(path: Path) -> bool:
+    if path.name != "context.jsonl" or not path.is_file():
+        return False
+    try:
+        with path.open("r", encoding="utf-8", errors="replace") as handle:
+            for _ in range(400):
+                line = handle.readline()
+                if not line:
+                    break
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if not isinstance(obj, dict):
+                    continue
+                role = obj.get("role")
+                if role == "_system_prompt":
+                    return True
+                if role == "_usage" and isinstance(obj.get("token_count"), int):
+                    return True
+    except OSError:
+        return False
+    return False
+
+
+_OPENCODE_VENDOR_TO_PROVIDER = {
+    "anthropic": "anthropic",
+    "openai": "openai",
+    "google": "google",
+    "moonshot": "moonshot",
+    "deepseek": "deepseek",
+    "zhipu": "zhipu",
+    "glm": "zhipu",
+    "bigmodel": "zhipu",
+    "dashscope": "alibaba",
+    "alibaba": "alibaba",
+    "xiaomi": "xiaomi",
+    "minimax": "minimax",
+}
+
+
+def billing_model_slug_from_opencode(model_id: str) -> str:
+    mid = (model_id or "").strip()
+    if not mid or mid.lower() == "unknown":
+        return "UNRECORDED"
+    if "/" in mid:
+        tail = mid.split("/", 1)[1].strip()
+        return tail or mid.replace("/", "_")
+    return mid
+
+
+def provider_and_slug_from_opencode_model(model_id_raw: str) -> tuple[str, str]:
+    """Map OpenCode Models.dev ids (vendor/modelSlug) onto pricing lookup."""
+    slug = billing_model_slug_from_opencode(model_id_raw)
+    if "/" in model_id_raw:
+        vendor = model_id_raw.split("/", 1)[0].strip().lower()
+        prov = _OPENCODE_VENDOR_TO_PROVIDER.get(vendor)
+        if prov:
+            return prov, slug
+    return infer_provider_from_model(slug), slug
+
+
+def opencode_standard_dirs(home: Optional[Path] = None) -> list[Path]:
+    """OpenCode SQLite 存放目录候选（对齐 CodeBurn opencode.ts getDataDir 思路 + Windows LOCALAPPDATA）。"""
+    seen: Dict[str, Path] = {}
+
+    def add(p: Path) -> None:
+        key = str(p)
+        if key not in seen:
+            seen[key] = p
+
+    root = home or Path.home()
+    oe = os.environ.get("OPENCODE_DATA_DIR", "").strip()
+    if oe:
+        add(Path(os.path.expandvars(os.path.expanduser(oe))))
+    xd = os.environ.get("XDG_DATA_HOME", "").strip()
+    if xd:
+        add(Path(os.path.expandvars(os.path.expanduser(xd))) / "opencode")
+    add(root / ".local" / "share" / "opencode")
+    if os.name == "nt":
+        la = os.environ.get("LOCALAPPDATA", "").strip()
+        if la:
+            add(Path(la) / "opencode")
+    return list(seen.values())
+
+
+def iter_opencode_db_files() -> Iterable[Path]:
+    for d in opencode_standard_dirs():
+        if not d.is_dir():
+            continue
+        try:
+            for name in sorted(os.listdir(d)):
+                if name.startswith("opencode") and name.endswith(".db"):
+                    p = d / name
+                    if p.is_file():
+                        yield p
+        except OSError:
+            continue
+
+
+def _opencode_db_has_session_message(conn: sqlite3.Connection) -> bool:
+    try:
+        n = conn.execute(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name IN ('session', 'message')"
+        ).fetchone()
+        return bool(n and n[0] >= 2)
+    except sqlite3.Error:
+        return False
+
+
+def _opencode_list_root_sessions(conn: sqlite3.Connection) -> list[tuple[str, int]]:
+    """返回 (session_id, time_created) 根会话，优先跳过子会话与归档列（若不存在则降级查询）。"""
+    queries = (
+        "SELECT id, time_created FROM session WHERE time_archived IS NULL AND parent_id IS NULL ORDER BY time_created DESC",
+        "SELECT id, time_created FROM session WHERE parent_id IS NULL ORDER BY time_created DESC",
+        "SELECT id, time_created FROM session ORDER BY time_created DESC",
+    )
+    for sql in queries:
+        try:
+            rows = conn.execute(sql).fetchall()
+            parsed: list[tuple[str, int]] = []
+            for sid_raw, tc in rows:
+                if isinstance(sid_raw, str) and sid_raw.strip():
+                    parsed.append((sid_raw.strip(), as_int(tc)))
+            return parsed
+        except sqlite3.Error:
+            continue
+    return []
+
+
+def find_opencode_session_in_db(db_path: Path, session_id: str) -> bool:
+    if not db_path.is_file():
+        return False
+    try:
+        conn = sqlite3.connect(str(db_path.resolve()), timeout=5.0)
+    except sqlite3.Error:
+        return False
+    try:
+        if not _opencode_db_has_session_message(conn):
+            return False
+        row = conn.execute(
+            "SELECT 1 FROM session WHERE id = ? LIMIT 1",
+            (session_id,),
+        ).fetchone()
+        return row is not None
+    except sqlite3.Error:
+        return False
+    finally:
+        conn.close()
+
+
+def global_newest_opencode_session() -> Optional[tuple[Path, str]]:
+    best: Optional[tuple[Path, str, float]] = None
+    for db_path in iter_opencode_db_files():
+        try:
+            conn = sqlite3.connect(str(db_path.resolve()), timeout=2.0)
+        except sqlite3.Error:
+            continue
+        try:
+            if not _opencode_db_has_session_message(conn):
+                continue
+            rows = _opencode_list_root_sessions(conn)
+            if not rows:
+                continue
+            sid, tc = rows[0]
+            # time_created：秒级或毫秒混用——与 CodeBurn 一致转成可排序 float
+            tkey = float(tc) / 1000.0 if float(tc or 0) < 1e12 else float(tc)
+            cand = (db_path, sid, tkey)
+            if best is None or cand[2] > best[2]:
+                best = cand
+        finally:
+            conn.close()
+    if best is None:
+        return None
+    return best[0], best[1]
+
+
+def global_find_opencode_db_for_session(session_id: str) -> Optional[Path]:
+    for db_path in iter_opencode_db_files():
+        if find_opencode_session_in_db(db_path, session_id):
+            return db_path
+    return None
+
+
+def is_opencode_database_file(path: Path) -> bool:
+    if not path.is_file():
+        return False
+    suf = path.suffix.lower()
+    if suf != ".db":
+        return False
+    name_ok = path.name.startswith("opencode")
+    low = path.name.lower()
+    if not name_ok:
+        path_slash = str(path.resolve()).replace("\\", "/").lower()
+        name_ok = "opencode" in low and "/opencode/" in path_slash
+    if not name_ok:
+        return False
+    try:
+        conn = sqlite3.connect(str(path.resolve()), timeout=2.0)
+    except sqlite3.Error:
+        return False
+    try:
+        return _opencode_db_has_session_message(conn)
+    finally:
+        conn.close()
+
+
+def _opencode_iso_from_tc(time_created_raw: Any) -> str:
+    try:
+        n = float(time_created_raw)
+    except (TypeError, ValueError):
+        return dt.datetime.now(dt.timezone.utc).isoformat()
+    ms = n * 1000.0 if n < 1e12 else n
+    return dt.datetime.fromtimestamp(ms / 1000.0, tz=dt.timezone.utc).isoformat()
+
+
+def _assistant_tokens_from_payload(data: Dict[str, Any]) -> Optional[tuple[int, int, int, int, int]]:
+    if data.get("role") != "assistant":
+        return None
+    raw_cost = data.get("cost")
+    cost_ok = isinstance(raw_cost, (int, float)) and float(raw_cost) != 0.0
+    t = data.get("tokens") or {}
+    inp = as_int(t.get("input"))
+    outp = as_int(t.get("output"))
+    reasoning = as_int(t.get("reasoning"))
+    cache = t.get("cache") if isinstance(t.get("cache"), dict) else {}
+    cached_read = as_int(cache.get("read"))
+    cache_write = as_int(cache.get("write"))
+    if inp == outp == reasoning == cached_read == cache_write == 0 and not cost_ok:
+        return None
+    return (inp, cached_read, cache_write, outp, reasoning)
+
+
+def load_snapshot_from_opencode_sqlite(
+    db_path: Path,
+    session_id: str,
+    scope: str,
+    model_override: Optional[str],
+    provider_override: Optional[str],
+) -> UsageSnapshot:
+    try:
+        conn = sqlite3.connect(str(db_path.resolve()), timeout=10.0)
+    except sqlite3.Error as exc:
+        raise SystemExit(f"Cannot open OpenCode database {db_path}: {exc}") from exc
+    try:
+        if not _opencode_db_has_session_message(conn):
+            raise SystemExit(f"OpenCode DB schema mismatch (need session/message): {db_path}")
+        try:
+            rows = conn.execute(
+                "SELECT time_created, data FROM message WHERE session_id = ? ORDER BY time_created ASC, rowid ASC",
+                (session_id,),
+            ).fetchall()
+        except sqlite3.Error as exc:
+            raise SystemExit(f"OpenCode SQLite message read failed {db_path}: {exc}") from exc
+    finally:
+        conn.close()
+
+    turns: list[tuple[Any, str, tuple[int, int, int, int, int]]] = []
+    for time_created, raw in rows:
+        if not isinstance(raw, str):
+            continue
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(payload, dict):
+            continue
+        tup = _assistant_tokens_from_payload(payload)
+        if tup is None:
+            continue
+        model_id_cell = payload.get("modelID")
+        mid = model_id_cell.strip() if isinstance(model_id_cell, str) else ""
+        turns.append((time_created, mid, tup))
+
+    if not turns:
+        raise SystemExit(
+            f"No assistant rows with tokens/cost found in OpenCode DB for session={session_id!r}: {db_path}. "
+            "Try `opencode session list`, set OPENCODE_SESSION_ID, or use --opencode-session-id."
+        )
+
+    if scope == "latest-turn":
+        _, last_mid_raw, tup = turns[-1]
+        last_mid = (last_mid_raw or "").strip()
+        inp_s, cached_s, cw_s, outp_s, reas_s = tup
+        last_ts_iso = _opencode_iso_from_tc(turns[-1][0])
+        aggregated = tup
+        model_pick_raw = model_override or last_mid
+    else:
+        sums = [0, 0, 0, 0, 0]
+        for _, mid, tup in turns:
+            for i, _v in enumerate(tup):
+                sums[i] += tup[i]
+        inp_s, cached_s, cw_s, outp_s, reas_s = sums[0], sums[1], sums[2], sums[3], sums[4]
+        last_mid = (turns[-1][1] or "").strip()
+        last_ts_iso = _opencode_iso_from_tc(turns[-1][0])
+        aggregated = tuple(sums)
+        model_pick_raw = model_override or last_mid
+
+    raw_model_cell = ((model_pick_raw or "").strip()) or ""
+    raw_model_final = raw_model_cell or model_from_env() or "UNRECORDED"
+    vendor_provider, inferred_slug = provider_and_slug_from_opencode_model(raw_model_final)
+    provider = provider_override or vendor_provider
+    # 票面模型名优先用户覆盖；否则用 vendor/slug → 仅剩 slug（与定价表对齐）
+    if model_override and model_override.strip():
+        mo = model_override.strip()
+        model_line = billing_model_slug_from_opencode(mo) if "/" in mo else mo
+    elif raw_model_final == "UNRECORDED":
+        model_line = "UNRECORDED"
+    else:
+        model_line = inferred_slug
+
+    pricing_model = model_override.strip() if model_override and model_override.strip() else inferred_slug
+
+    total_agg = aggregated[0] + aggregated[1] + aggregated[2] + aggregated[3] + aggregated[4]
+
+    fields: list[str] = []
+    if inp_s > 0:
+        fields.append("input_tokens")
+    if cached_s > 0:
+        fields.append("cached_input_tokens")
+    if cw_s > 0:
+        fields.append("cache_write_tokens")
+    if outp_s > 0:
+        fields.append("output_tokens")
+    if reas_s > 0:
+        fields.append("reasoning_output_tokens")
+    fields.append("total_tokens")
+    avail = tuple(sorted(set(fields)))
+
+    source_ref = f"{db_path}#{session_id}"
+    return UsageSnapshot(
+        input_tokens=inp_s,
+        cached_input_tokens=cached_s,
+        cache_write_tokens=cw_s,
+        output_tokens=outp_s,
+        reasoning_output_tokens=reas_s,
+        total_tokens=total_agg,
+        context_tokens=None,
+        context_window=None,
+        provider=str(provider),
+        model=str(pricing_model if pricing_model and pricing_model != "UNRECORDED" else model_line),
+        source=source_ref,
+        session_id=session_id,
+        timestamp=last_ts_iso,
+        scope=scope,
+        available_fields=avail,
+        skip_price_estimate=False,
+    )
+
+
+def runtime_opencode_session_id(env: Optional[Mapping[str, str]] = None) -> Optional[str]:
+    runtime = env or os.environ
+    for key in ("OPENCODE_SESSION_ID",):
+        val = runtime.get(key, "").strip()
+        if val:
+            return val
     return None
 
 
@@ -354,6 +862,11 @@ def runtime_agent_tool(env: Optional[Mapping[str, str]] = None) -> Optional[str]
         return "codex"
     if any(runtime.get(key) for key in ("TRAE_RUNTIME", "TRAE_IDE", "TRAE_SESSION_ID")):
         return "trae"
+    # Kimi Code CLI / 宿主可注入，便于在非交互环境里自动选型
+    if runtime.get("KIMI_SESSION_ID", "").strip() or runtime.get("KIMI_CODE", "").strip():
+        return "kimi-code"
+    if runtime_opencode_session_id(runtime):
+        return "opencode"
     return None
 
 
@@ -372,7 +885,7 @@ def requested_agent_tool(args: argparse.Namespace, env: Optional[Mapping[str, st
         return explicit
 
     brand = getattr(args, "brand", None)
-    if brand in ("codex", "claude-code", "trae"):
+    if brand in ("codex", "claude-code", "trae", "kimi-code", "opencode"):
         return brand
 
     return runtime_agent_tool(env)
@@ -385,6 +898,18 @@ def resolve_snapshot(args: argparse.Namespace) -> UsageSnapshot:
     if args.session:
         if is_claude_usage_file(args.session):
             return load_snapshot_from_claude_usage(args.session, args.model, args.provider)
+        if is_kimi_context_file(args.session):
+            return load_snapshot_from_kimi_context(args.session, args.model, args.provider)
+        if is_opencode_database_file(args.session):
+            ses = (getattr(args, "opencode_session_id", None) or "").strip() or runtime_opencode_session_id()
+            if not ses:
+                raise SystemExit(
+                    "OpenCode: --session points to an OpenCode SQLite file. "
+                    "Add --opencode-session-id <ses_...> or set OPENCODE_SESSION_ID."
+                )
+            return load_snapshot_from_opencode_sqlite(
+                args.session, ses, args.scope, args.model, args.provider
+            )
         return load_snapshot_from_session(args.session, args.scope, args.model, args.provider)
 
     agent_tool = requested_agent_tool(args)
@@ -412,33 +937,80 @@ def resolve_snapshot(args: argparse.Namespace) -> UsageSnapshot:
             "If you are on Windows, the equivalent home-relative paths are %USERPROFILE%\\.codex\\sessions and %USERPROFILE%\\.codex\\archived_sessions."
         )
 
+    if agent_tool == "kimi-code":
+        kimi_path = None
+        sid = os.environ.get("KIMI_SESSION_ID", "").strip()
+        if sid:
+            kimi_path = find_kimi_context_for_session(sid)
+        if kimi_path is None:
+            kimi_path = newest_kimi_context_file()
+        if kimi_path:
+            return load_snapshot_from_kimi_context(kimi_path, args.model, args.provider)
+        share = kimi_share_dir()
+        raise SystemExit(
+            f"No Kimi Code context.jsonl found under {share / 'sessions'} or {share / 'imported_sessions'}. "
+            "Try --session <path/to/context.jsonl>, export with `kimi export`, or pass manual --input-tokens/--output-tokens."
+        )
+
+    if agent_tool == "opencode":
+        ses = (getattr(args, "opencode_session_id", None) or "").strip() or runtime_opencode_session_id()
+        if ses:
+            db_hit = global_find_opencode_db_for_session(ses)
+            if db_hit:
+                return load_snapshot_from_opencode_sqlite(db_hit, ses, args.scope, args.model, args.provider)
+            raise SystemExit(
+                f"OpenCode session id {ses!r} not found in any opencode*.db under known data dirs. "
+                "Try `opencode session list`, OPENCODE_DATA_DIR, or `--session /path/to/opencode.db --opencode-session-id ...`."
+            )
+        newest = global_newest_opencode_session()
+        if newest:
+            db_path, sid2 = newest
+            return load_snapshot_from_opencode_sqlite(db_path, sid2, args.scope, args.model, args.provider)
+        roots = ", ".join(str(p) for p in opencode_standard_dirs())
+        raise SystemExit(
+            f"No OpenCode SQLite (opencode*.db) found under: {roots}. "
+            "Install sessions with OpenCode CLI, or set OPENCODE_DATA_DIR / XDG_DATA_HOME, or use manual token flags."
+        )
+
     if agent_tool == "trae":
         raise SystemExit(trae_manual_mode_error())
 
     codex_path = newest_session_file()
     claude_path = newest_claude_usage_file()
+    kimi_path = newest_kimi_context_file()
+    opencode_ref = global_newest_opencode_session()
 
     sources = []
     if codex_path:
         sources.append(("codex", codex_path))
     if claude_path:
         sources.append(("claude-code", claude_path))
+    if kimi_path:
+        sources.append(("kimi-code", kimi_path))
+    if opencode_ref:
+        sources.append(("opencode", opencode_ref))
 
     if len(sources) == 1:
         source_type, path = sources[0]
         if source_type == "codex":
             return load_snapshot_from_session(path, args.scope, args.model, args.provider)
+        if source_type == "kimi-code":
+            return load_snapshot_from_kimi_context(path, args.model, args.provider)
+        if source_type == "opencode":
+            db_p, sid_o = path  # type: ignore[misc]
+            return load_snapshot_from_opencode_sqlite(db_p, sid_o, args.scope, args.model, args.provider)
         return load_snapshot_from_claude_usage(path, args.model, args.provider)
 
     if len(sources) > 1:
         raise SystemExit(
             "Multiple software logs are available locally. "
-            "Pass --agent-tool codex or --agent-tool claude-code, or run token-receipt inside the software whose conversation you want to bill. "
+            "Pass --agent-tool codex, --agent-tool claude-code, --agent-tool kimi-code, --agent-tool opencode, "
+            "or run token-receipt inside the software whose conversation you want to bill. "
             "token-receipt does not guess across software."
         )
 
     raise SystemExit(
-        "No Codex or Claude Code session file found for the current software. "
+        "No Codex, Claude Code, Kimi Code, or OpenCode session logs found locally. "
         "For Trae, automatic import is not implemented yet; provide --input-tokens and --output-tokens for manual mode."
     )
 
@@ -468,6 +1040,10 @@ def find_price(pricing: Dict[str, Any], provider: str, model: str) -> Optional[D
 
 
 def estimate_cost(snapshot: UsageSnapshot, pricing_path: Path) -> PriceEstimate:
+    # Kimi context.jsonl 只有上下文累计 token_count，不能直接套 API 分项单价
+    if snapshot.skip_price_estimate:
+        return PriceEstimate(status="UNMAPPED", amount=None)
+
     pricing = load_pricing(pricing_path)
     entry = find_price(pricing, snapshot.provider, snapshot.model)
     if not entry:
@@ -486,7 +1062,7 @@ def estimate_cost(snapshot: UsageSnapshot, pricing_path: Path) -> PriceEstimate:
         uncached * input_rate
         + cached * cached_rate
         + cache_write * cache_write_rate
-        + snapshot.output_tokens * output_rate
+        + (snapshot.output_tokens + snapshot.reasoning_output_tokens) * output_rate
     ) / 1_000_000
 
     return PriceEstimate(
@@ -505,7 +1081,7 @@ def available_fields_report(snapshot: UsageSnapshot) -> Dict[str, Any]:
     rendered = [field for field in RECEIPT_TOKEN_FIELDS if field in snapshot.available_fields]
     unavailable_common = [field for field in COMMON_TOKEN_FIELDS if field not in snapshot.available_fields]
     available_optional = [field for field in OPTIONAL_TOKEN_FIELDS if field in snapshot.available_fields]
-    return {
+    report: Dict[str, Any] = {
         "source": snapshot.source,
         "scope": snapshot.scope,
         "provider": snapshot.provider,
@@ -533,3 +1109,9 @@ def available_fields_report(snapshot: UsageSnapshot) -> Dict[str, Any]:
             "system_tokens",
         ],
     }
+    if snapshot.skip_price_estimate:
+        report["usd_estimate_note"] = "skipped: kimi context.jsonl only stores cumulative context token tallies"
+        report["kimi_context_roles_expected"] = ["_system_prompt", "_usage", "_checkpoint", "assistant/user messages"]
+    if snapshot.context_tokens is not None:
+        report["context_snapshot_tokens_last_usage"] = snapshot.context_tokens
+    return report
